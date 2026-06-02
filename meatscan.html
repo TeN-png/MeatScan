@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<title>MeatScan</title>
+<style>
+  :root {
+    --green: #2e7d32;
+    --green-light: #e8f5e9;
+    --green-mid: #4caf50;
+    --blue: #1565c0;
+    --blue-light: #e3f2fd;
+    --red: #c62828;
+    --red-light: #ffebee;
+    --amber: #f57f17;
+    --amber-light: #fff8e1;
+    --gray0: #fafafa;
+    --gray1: #f5f5f5;
+    --gray2: #eeeeee;
+    --gray3: #e0e0e0;
+    --gray4: #bdbdbd;
+    --gray6: #757575;
+    --gray8: #424242;
+    --gray9: #212121;
+    --white: #ffffff;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --shadow: 0 2px 8px rgba(0,0,0,0.12);
+    --shadow-lg: 0 4px 20px rgba(0,0,0,0.18);
+    --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; overflow: hidden; font-family: var(--font); background: var(--gray1); color: var(--gray9); }
+
+  /* ── App shell ── */
+  #app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; max-width: 480px; margin: 0 auto; background: var(--white); position: relative; overflow: hidden; }
+
+  /* ── Header ── */
+  header { background: var(--gray9); color: white; padding: 14px 16px 12px; display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  header h1 { font-size: 18px; font-weight: 600; flex: 1; letter-spacing: -0.3px; }
+  #sheets-status { font-size: 12px; padding: 4px 10px; border-radius: 20px; font-weight: 500; cursor: pointer; border: none; display: flex; align-items: center; gap: 5px; }
+  #sheets-status.connected { background: var(--green); color: white; }
+  #sheets-status.disconnected { background: #444; color: #ccc; }
+
+  /* ── Tab bar ── */
+  nav { display: flex; background: var(--white); border-bottom: 1px solid var(--gray3); flex-shrink: 0; }
+  nav button { flex: 1; padding: 10px 4px 9px; font-size: 12px; font-weight: 500; color: var(--gray6); background: none; border: none; cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.15s; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  nav button svg { width: 20px; height: 20px; }
+  nav button.active { color: var(--green); border-bottom-color: var(--green); }
+
+  /* ── Scroll area ── */
+  .tab-content { display: none; flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .tab-content.active { display: block; }
+
+  /* ── Scan tab ── */
+  #scan-tab { padding-bottom: 24px; }
+
+  .step-card { margin: 14px 14px 0; background: var(--white); border: 1px solid var(--gray3); border-radius: var(--radius); overflow: hidden; }
+  .step-header { padding: 12px 14px 10px; display: flex; align-items: center; gap: 10px; background: var(--gray0); border-bottom: 1px solid var(--gray3); }
+  .step-num { width: 24px; height: 24px; border-radius: 50%; background: var(--gray9); color: white; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .step-num.done { background: var(--green); }
+  .step-num.active { background: var(--blue); }
+  .step-title { font-size: 14px; font-weight: 600; flex: 1; }
+  .step-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+  .step-badge.ok { background: var(--green-light); color: var(--green); }
+  .step-badge.pending { background: var(--amber-light); color: var(--amber); }
+  .step-body { padding: 12px 14px; }
+
+  /* Camera viewfinder */
+  .vf-wrap { position: relative; background: #111; border-radius: 10px; overflow: hidden; aspect-ratio: 4/3; display: flex; align-items: center; justify-content: center; }
+  #barcode-video { width: 100%; height: 100%; object-fit: cover; display: none; }
+  .vf-overlay { position: absolute; inset: 0; pointer-events: none; }
+  .vf-corners { position: absolute; inset: 20px; }
+  .vf-corners::before, .vf-corners::after { content: ''; position: absolute; width: 28px; height: 28px; border-color: #4caf50; border-style: solid; }
+  .vf-corners::before { top: 0; left: 0; border-width: 3px 0 0 3px; border-radius: 4px 0 0 4px; }
+  .vf-corners::after { top: 0; right: 0; border-width: 3px 3px 0 0; border-radius: 0 4px 0 0; }
+  .vf-corners-b::before, .vf-corners-b::after { content: ''; position: absolute; width: 28px; height: 28px; border-color: #4caf50; border-style: solid; bottom: 0; }
+  .vf-corners-b::before { left: 0; border-width: 0 0 3px 3px; border-radius: 0 0 0 4px; }
+  .vf-corners-b::after { right: 0; border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
+  .scan-line { position: absolute; left: 20px; right: 20px; height: 2px; background: linear-gradient(90deg, transparent, #4caf50, transparent); animation: scanline 2s ease-in-out infinite; display: none; }
+  .scan-line.active { display: block; }
+  @keyframes scanline { 0%,100%{top:24px;opacity:0.4} 50%{top:calc(100% - 24px);opacity:1} }
+  .vf-placeholder { color: #666; font-size: 13px; text-align: center; padding: 20px; line-height: 1.5; }
+  .vf-result { position: absolute; inset: 0; background: rgba(0,0,0,0.7); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
+  .vf-result-icon { width: 48px; height: 48px; border-radius: 50%; background: var(--green); display: flex; align-items: center; justify-content: center; }
+  .vf-result-text { color: white; font-size: 14px; font-weight: 600; }
+  .vf-result-sub { color: #aaa; font-size: 12px; text-align: center; padding: 0 20px; }
+
+  /* Buttons */
+  .btn { padding: 11px 18px; border-radius: var(--radius-sm); font-size: 14px; font-weight: 600; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; transition: all 0.15s; }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: var(--gray9); color: white; width: 100%; justify-content: center; margin-top: 10px; }
+  .btn-green { background: var(--green); color: white; width: 100%; justify-content: center; margin-top: 10px; }
+  .btn-blue { background: var(--blue); color: white; width: 100%; justify-content: center; margin-top: 10px; }
+  .btn-outline { background: transparent; color: var(--gray8); border: 1.5px solid var(--gray3); }
+  .btn-danger { background: var(--red-light); color: var(--red); border: 1px solid #ef9a9a; }
+  .btn-sm { padding: 7px 12px; font-size: 12px; border-radius: 6px; }
+
+  /* Fields */
+  .field-row { display: flex; gap: 8px; margin-top: 10px; }
+  .field-row .field-group { flex: 1; }
+  .field-group { margin-top: 10px; }
+  .field-group label { font-size: 11px; font-weight: 600; color: var(--gray6); text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 4px; }
+  .field-group input, .field-group select { width: 100%; padding: 10px 12px; border: 1.5px solid var(--gray3); border-radius: var(--radius-sm); font-size: 15px; font-family: var(--font); background: var(--white); color: var(--gray9); outline: none; transition: border-color 0.15s; }
+  .field-group input:focus, .field-group select:focus { border-color: var(--green); }
+  .field-group input.filled { background: var(--green-light); border-color: #a5d6a7; }
+  .field-group input.auto-filled { background: var(--blue-light); border-color: #90caf9; }
+
+  /* AI vision area */
+  .ai-wrap { position: relative; border-radius: 10px; overflow: hidden; aspect-ratio: 4/3; background: #111; display: flex; align-items: center; justify-content: center; }
+  #ai-video { width: 100%; height: 100%; object-fit: cover; display: none; }
+  #ai-canvas { display: none; }
+  .ai-placeholder { color: #666; font-size: 13px; text-align: center; padding: 20px; line-height: 1.5; }
+  .ai-thinking { position: absolute; inset: 0; background: rgba(0,0,0,0.75); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; display: none; }
+  .ai-thinking.show { display: flex; }
+  .spinner { width: 36px; height: 36px; border: 3px solid rgba(255,255,255,0.2); border-top-color: white; border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .ai-thinking p { color: white; font-size: 13px; }
+  .ai-snap-preview { position: absolute; inset: 0; object-fit: cover; }
+
+  /* Save row */
+  .save-bar { padding: 14px; background: var(--white); border-top: 1px solid var(--gray3); display: flex; gap: 10px; flex-shrink: 0; }
+  .save-bar .btn { flex: 1; margin: 0; }
+
+  /* ── Log tab ── */
+  #log-tab { padding-bottom: 80px; }
+  .log-toolbar { padding: 12px 14px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--gray3); background: var(--gray0); position: sticky; top: 0; z-index: 10; }
+  .log-toolbar h2 { font-size: 15px; font-weight: 600; flex: 1; }
+  .log-count-badge { background: var(--gray9); color: white; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
+  .log-item { padding: 12px 14px; border-bottom: 1px solid var(--gray2); display: flex; align-items: flex-start; gap: 12px; }
+  .log-item:active { background: var(--gray1); }
+  .log-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+  .log-dot.saved { background: var(--green-mid); }
+  .log-dot.queued { background: var(--amber); }
+  .log-body { flex: 1; min-width: 0; }
+  .log-name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .log-meta { font-size: 12px; color: var(--gray6); margin-top: 2px; }
+  .log-time { font-size: 11px; color: var(--gray4); flex-shrink: 0; }
+  .log-empty { padding: 40px 20px; text-align: center; color: var(--gray6); font-size: 14px; }
+  .export-bar { padding: 12px 14px; border-top: 1px solid var(--gray3); background: var(--white); position: fixed; bottom: 0; width: 100%; max-width: 480px; display: flex; gap: 10px; }
+  .export-bar .btn { flex: 1; margin: 0; }
+
+  /* ── Settings tab ── */
+  #settings-tab { padding: 14px 14px 40px; }
+  .settings-section { margin-bottom: 22px; }
+  .settings-section h3 { font-size: 12px; font-weight: 700; color: var(--gray6); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
+  .settings-card { background: var(--white); border: 1px solid var(--gray3); border-radius: var(--radius); overflow: hidden; }
+  .settings-row { padding: 13px 14px; border-bottom: 1px solid var(--gray2); display: flex; align-items: center; gap: 12px; }
+  .settings-row:last-child { border-bottom: none; }
+  .settings-row label { font-size: 14px; flex: 1; }
+  .settings-row input[type=text] { padding: 8px 10px; border: 1.5px solid var(--gray3); border-radius: 6px; font-size: 13px; width: 180px; outline: none; }
+  .settings-row input[type=text]:focus { border-color: var(--green); }
+  .toggle { width: 44px; height: 26px; background: var(--gray3); border-radius: 13px; position: relative; cursor: pointer; transition: background 0.2s; border: none; flex-shrink: 0; }
+  .toggle.on { background: var(--green-mid); }
+  .toggle::after { content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; background: white; border-radius: 50%; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+  .toggle.on::after { transform: translateX(18px); }
+  .api-key-note { font-size: 11px; color: var(--gray6); margin-top: 6px; line-height: 1.5; background: var(--amber-light); padding: 8px 10px; border-radius: 6px; border-left: 3px solid var(--amber); }
+
+  /* ── Toast ── */
+  #toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--gray9); color: white; padding: 10px 18px; border-radius: 20px; font-size: 13px; font-weight: 500; opacity: 0; transition: all 0.25s; pointer-events: none; white-space: nowrap; z-index: 1000; max-width: 90vw; text-align: center; }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ── Modal ── */
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; display: none; align-items: flex-end; justify-content: center; }
+  .modal-bg.open { display: flex; }
+  .modal { background: var(--white); border-radius: 18px 18px 0 0; padding: 20px 18px 34px; width: 100%; max-width: 480px; max-height: 85vh; overflow-y: auto; }
+  .modal-handle { width: 40px; height: 4px; background: var(--gray3); border-radius: 2px; margin: 0 auto 16px; }
+  .modal h2 { font-size: 17px; font-weight: 700; margin-bottom: 14px; }
+  .modal-actions { display: flex; gap: 10px; margin-top: 16px; }
+  .modal-actions .btn { flex: 1; margin: 0; }
+
+  /* ── Highlight pulse ── */
+  @keyframes pulse-green { 0%,100%{box-shadow:0 0 0 0 rgba(76,175,80,0.4)} 50%{box-shadow:0 0 0 8px rgba(76,175,80,0)} }
+  .pulse { animation: pulse-green 1s ease-out; }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <header>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="8" y1="3" x2="8" y2="21"/><line x1="3" y1="8" x2="8" y2="8"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="16" x2="8" y2="16"/></svg>
+    <h1>MeatScan</h1>
+    <button id="sheets-status" class="disconnected" onclick="openSheetsModal()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14H7v-2h5v2zm5-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+      <span id="sheets-label">Connect Sheets</span>
+    </button>
+  </header>
+
+  <nav>
+    <button class="active" onclick="switchTab('scan')" id="tab-scan">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><line x1="14" y1="17" x2="21" y2="17"/><line x1="17" y1="14" x2="17" y2="21"/></svg>
+      Scan
+    </button>
+    <button onclick="switchTab('log')" id="tab-log">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3" cy="6" r="1" fill="currentColor"/><circle cx="3" cy="12" r="1" fill="currentColor"/><circle cx="3" cy="18" r="1" fill="currentColor"/></svg>
+      Log (<span id="log-count-nav">0</span>)
+    </button>
+    <button onclick="switchTab('settings')" id="tab-settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Settings
+    </button>
+  </nav>
+
+  <!-- ── SCAN TAB ── -->
+  <div class="tab-content active" id="scan-tab">
+
+    <!-- Step 1: Weigh ticket barcode -->
+    <div class="step-card" id="step1-card">
+      <div class="step-header">
+        <div class="step-num active" id="step1-num">1</div>
+        <span class="step-title">Scan weigh ticket barcode</span>
+        <span class="step-badge pending" id="step1-badge">Pending</span>
+      </div>
+      <div class="step-body">
+        <div class="vf-wrap" id="vf1-wrap">
+          <video id="barcode-video" autoplay playsinline muted></video>
+          <div class="vf-overlay">
+            <div class="vf-corners"></div>
+            <div class="vf-corners-b" style="position:absolute;inset:20px;"></div>
+            <div class="scan-line" id="scan-line1"></div>
+          </div>
+          <div class="vf-placeholder" id="vf1-placeholder">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.5" style="margin-bottom:8px"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/><rect x="18" y="18" width="3" height="3"/></svg>
+            <div>GS1-128 barcode on the<br>weigh ticket label</div>
+          </div>
+          <div class="vf-result" id="vf1-result" style="display:none">
+            <div class="vf-result-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <div class="vf-result-text">Barcode scanned!</div>
+            <div class="vf-result-sub" id="vf1-result-sub"></div>
+          </div>
+        </div>
+        <button class="btn btn-primary" id="btn-scan1" onclick="startBarcodeScan()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          Open camera
+        </button>
+        <div class="field-row" style="margin-top:10px">
+          <div class="field-group" style="flex:1">
+            <label>Sequence # <span style="color:#999;font-weight:400;text-transform:none">(auto)</span></label>
+            <input type="text" id="f-seq" placeholder="e.g. 0202003916" />
+          </div>
+          <div class="field-group" style="flex:1">
+            <label>Pack date <span style="color:#999;font-weight:400;text-transform:none">(auto)</span></label>
+            <input type="text" id="f-date" placeholder="e.g. 2025-05-14" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2: Product label -->
+    <div class="step-card" id="step2-card" style="margin-top:12px">
+      <div class="step-header">
+        <div class="step-num" id="step2-num">2</div>
+        <span class="step-title">Scan product label</span>
+        <span class="step-badge pending" id="step2-badge">Pending</span>
+      </div>
+      <div class="step-body">
+        <p style="font-size:13px;color:#757575;margin-bottom:10px;line-height:1.5">Scan the brand label (e.g. Clear River Farms). The AI will also read the packager name from the image.</p>
+
+        <!-- AI Vision Camera -->
+        <div class="ai-wrap" id="ai-wrap">
+          <video id="ai-video" autoplay playsinline muted></video>
+          <canvas id="ai-canvas"></canvas>
+          <img id="ai-snap" style="display:none;width:100%;height:100%;object-fit:cover;position:absolute;inset:0" />
+          <div class="ai-thinking" id="ai-thinking">
+            <div class="spinner"></div>
+            <p>Reading label with AI…</p>
+          </div>
+          <div class="ai-placeholder" id="ai-placeholder">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.5" style="margin-bottom:8px"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            <div>Point at the brand/product label<br>to capture packager name</div>
+          </div>
+        </div>
+        <button class="btn btn-primary" id="btn-ai" onclick="startAICamera()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          Open camera &amp; read label
+        </button>
+        <div class="field-group" style="margin-top:10px">
+          <label>Product name</label>
+          <input type="text" id="f-product" placeholder="e.g. BNLS BEEF SHOULDER CLOD" />
+        </div>
+        <div class="field-row">
+          <div class="field-group">
+            <label>Packager name</label>
+            <input type="text" id="f-packager" placeholder="e.g. Clear River Farms" />
+          </div>
+          <div class="field-group">
+            <label>EST #</label>
+            <input type="text" id="f-est" placeholder="e.g. 562M" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="height:14px"></div>
+  </div><!-- /scan-tab -->
+
+  <!-- Save/clear bar (always visible at bottom of scan) -->
+  <div class="save-bar" id="save-bar">
+    <button class="btn btn-outline btn-sm" onclick="clearForm()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.98"/></svg>
+      Clear
+    </button>
+    <button class="btn btn-green" onclick="saveEntry()" style="margin:0;flex:1">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+      Save to sheet
+    </button>
+  </div>
+
+  <!-- ── LOG TAB ── -->
+  <div class="tab-content" id="log-tab">
+    <div class="log-toolbar">
+      <h2>Saved entries</h2>
+      <span class="log-count-badge" id="log-count-badge">0</span>
+      <button class="btn btn-outline btn-sm" onclick="syncQueue()" id="sync-btn" style="display:none">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.98"/></svg>
+        Sync
+      </button>
+    </div>
+    <div id="log-list">
+      <div class="log-empty">No entries yet.<br>Start scanning to add rows.</div>
+    </div>
+    <div class="export-bar">
+      <button class="btn btn-outline btn-sm" onclick="exportCSV()" style="margin:0">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export CSV
+      </button>
+      <button class="btn btn-danger btn-sm" onclick="confirmClear()" style="margin:0">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+        Clear all
+      </button>
+    </div>
+  </div>
+
+  <!-- ── SETTINGS TAB ── -->
+  <div class="tab-content" id="settings-tab">
+    <div class="settings-section">
+      <h3>Google Sheets</h3>
+      <div class="settings-card">
+        <div class="settings-row">
+          <label>Spreadsheet ID</label>
+          <input type="text" id="set-sheet-id" placeholder="From sheet URL" oninput="saveSettings()" />
+        </div>
+        <div class="settings-row">
+          <label>Sheet / Tab name</label>
+          <input type="text" id="set-sheet-tab" value="Scans" oninput="saveSettings()" />
+        </div>
+        <div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:8px">
+          <button class="btn btn-blue" style="margin:0;width:100%" onclick="initiateGoogleAuth()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+            Sign in with Google
+          </button>
+          <p style="font-size:11px;color:var(--gray6);line-height:1.5">Or paste an OAuth access token below if you've authorised via Google Cloud Console:</p>
+          <input type="text" id="set-token" placeholder="ya29.a0..." style="width:100%;padding:8px 10px;border:1.5px solid var(--gray3);border-radius:6px;font-size:12px;font-family:monospace" oninput="tokenChanged()" />
+          <div class="api-key-note">
+            <strong>To get a token:</strong> Go to <a href="https://developers.google.com/oauthplayground" target="_blank" style="color:var(--amber)">OAuth Playground</a>, authorise <em>https://www.googleapis.com/auth/spreadsheets</em>, and paste the Access Token here. Tokens expire after ~1 hour.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3>AI Vision (packager name)</h3>
+      <div class="settings-card">
+        <div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:6px">
+          <label style="font-size:13px;color:var(--gray9)">Anthropic API key</label>
+          <input type="text" id="set-ai-key" placeholder="sk-ant-..." style="width:100%;padding:8px 10px;border:1.5px solid var(--gray3);border-radius:6px;font-size:12px;font-family:monospace" oninput="saveSettings()" />
+          <div class="api-key-note">
+            Get a key at <a href="https://console.anthropic.com" target="_blank" style="color:var(--amber)">console.anthropic.com</a>. Stored only in your browser's local storage — never sent anywhere except the Anthropic API.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3>Defaults</h3>
+      <div class="settings-card">
+        <div class="settings-row">
+          <label>Default packager</label>
+          <input type="text" id="set-default-packager" placeholder="e.g. Clear River Farms" oninput="saveSettings()" />
+        </div>
+        <div class="settings-row">
+          <label>Default EST #</label>
+          <input type="text" id="set-default-est" placeholder="e.g. 562M" oninput="saveSettings()" />
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3>About</h3>
+      <div class="settings-card">
+        <div class="settings-row"><label style="color:var(--gray6);font-size:13px">MeatScan v1.0 · Reads GS1-128 barcodes and writes rows to Google Sheets. All data stored locally on device.</label></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<!-- ── MODALS ── -->
+<div class="modal-bg" id="sheets-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2>Connect Google Sheets</h2>
+    <div class="field-group">
+      <label>Spreadsheet ID</label>
+      <input type="text" id="m-sheet-id" placeholder="Copy from spreadsheet URL" />
+      <p style="font-size:11px;color:var(--gray6);margin-top:4px">The long string between /d/ and /edit in your Google Sheets URL</p>
+    </div>
+    <div class="field-group">
+      <label>Sheet / Tab name</label>
+      <input type="text" id="m-sheet-tab" value="Scans" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeSheetsModal()">Cancel</button>
+      <button class="btn btn-green" onclick="saveSheetsConfig()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="ai-capture-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2>Snap label photo</h2>
+    <p style="font-size:13px;color:var(--gray6);margin-bottom:12px">Position the product/brand label in frame, then tap Capture.</p>
+    <div class="ai-wrap" style="margin-bottom:10px">
+      <video id="ai-video-modal" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover"></video>
+      <div class="ai-thinking" id="ai-thinking-modal">
+        <div class="spinner"></div>
+        <p>Reading label with AI…</p>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeAIModal()">Cancel</button>
+      <button class="btn btn-green" id="btn-capture" onclick="captureAndAnalyse()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="4"/><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/></svg>
+        Capture &amp; analyse
+      </button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- ZXing for barcode scanning -->
+<script src="https://unpkg.com/@zxing/library@0.19.2/umd/index.min.js"></script>
+
+<script>
+// ────────────────────────────────────────────────────────
+//  State
+// ────────────────────────────────────────────────────────
+let entries = JSON.parse(localStorage.getItem('ms_entries') || '[]');
+let settings = JSON.parse(localStorage.getItem('ms_settings') || '{}');
+let barcodeReader = null;
+let barcodeStream = null;
+let aiStream = null;
+let aiModalStream = null;
+let scanningBarcode = false;
+
+// ────────────────────────────────────────────────────────
+//  Init
+// ────────────────────────────────────────────────────────
+function init() {
+  // Load settings into fields
+  if (settings.sheetId) { document.getElementById('set-sheet-id').value = settings.sheetId; document.getElementById('m-sheet-id').value = settings.sheetId; }
+  if (settings.sheetTab) { document.getElementById('set-sheet-tab').value = settings.sheetTab; document.getElementById('m-sheet-tab').value = settings.sheetTab; }
+  if (settings.token) document.getElementById('set-token').value = settings.token;
+  if (settings.aiKey) document.getElementById('set-ai-key').value = settings.aiKey;
+  if (settings.defaultPackager) { document.getElementById('set-default-packager').value = settings.defaultPackager; document.getElementById('f-packager').value = settings.defaultPackager; }
+  if (settings.defaultEst) { document.getElementById('set-default-est').value = settings.defaultEst; document.getElementById('f-est').value = settings.defaultEst; }
+  updateSheetsStatus();
+  renderLog();
+}
+
+// ────────────────────────────────────────────────────────
+//  Tab switching
+// ────────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(el => el.classList.remove('active'));
+  document.getElementById(tab + '-tab').classList.add('active');
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.getElementById('save-bar').style.display = tab === 'scan' ? 'flex' : 'none';
+  if (tab !== 'scan') stopBarcodeCamera();
+}
+
+// ────────────────────────────────────────────────────────
+//  Barcode scanning (ZXing)
+// ────────────────────────────────────────────────────────
+async function startBarcodeScan() {
+  if (scanningBarcode) { stopBarcodeCamera(); return; }
+  try {
+    const hints = new Map();
+    const formats = [
+      ZXing.BarcodeFormat.CODE_128,
+      ZXing.BarcodeFormat.EAN_13,
+      ZXing.BarcodeFormat.EAN_8,
+      ZXing.BarcodeFormat.UPC_A,
+      ZXing.BarcodeFormat.QR_CODE,
+      ZXing.BarcodeFormat.DATA_MATRIX,
+    ];
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+
+    barcodeReader = new ZXing.BrowserMultiFormatReader(hints);
+    const devices = await ZXing.BrowserCodeReader.listVideoInputDevices();
+    // Prefer back camera
+    const device = devices.find(d => /back|rear|environment/i.test(d.label)) || devices[devices.length - 1];
+
+    const video = document.getElementById('barcode-video');
+    document.getElementById('vf1-placeholder').style.display = 'none';
+    video.style.display = 'block';
+    document.getElementById('scan-line1').classList.add('active');
+    document.getElementById('btn-scan1').innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg> Stop scanning`;
+    scanningBarcode = true;
+
+    barcodeReader.decodeFromVideoDevice(device ? device.deviceId : undefined, video, (result, err) => {
+      if (result) {
+        handleBarcodeResult(result.getText());
+        stopBarcodeCamera();
+      }
+    });
+  } catch(e) {
+    toast('Camera error: ' + e.message);
+  }
+}
+
+function stopBarcodeCamera() {
+  if (barcodeReader) { try { barcodeReader.reset(); } catch(e){} barcodeReader = null; }
+  scanningBarcode = false;
+  const video = document.getElementById('barcode-video');
+  if (video.srcObject) { video.srcObject.getTracks().forEach(t => t.stop()); video.srcObject = null; }
+  video.style.display = 'none';
+  document.getElementById('scan-line1').classList.remove('active');
+  document.getElementById('btn-scan1').innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Open camera`;
+}
+
+function handleBarcodeResult(raw) {
+  const parsed = parseGS1orCode128(raw);
+  const seqEl = document.getElementById('f-seq');
+  const dateEl = document.getElementById('f-date');
+
+  if (parsed.seq) { seqEl.value = parsed.seq; seqEl.classList.add('auto-filled'); }
+  if (parsed.date) { dateEl.value = parsed.date; dateEl.classList.add('auto-filled'); }
+
+  // Show result overlay
+  document.getElementById('vf1-result').style.display = 'flex';
+  document.getElementById('vf1-placeholder').style.display = 'none';
+  document.getElementById('vf1-result-sub').textContent = `Seq: ${parsed.seq || '—'}  Date: ${parsed.date || '—'}`;
+
+  // Mark step 1 done
+  document.getElementById('step1-num').classList.remove('active');
+  document.getElementById('step1-num').classList.add('done');
+  document.getElementById('step1-num').innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+  document.getElementById('step1-badge').textContent = 'Done';
+  document.getElementById('step1-badge').classList.remove('pending');
+  document.getElementById('step1-badge').classList.add('ok');
+  document.getElementById('step2-num').classList.add('active');
+
+  toast('✓ Barcode read — seq & date extracted');
+  // Scroll to step 2
+  setTimeout(() => document.getElementById('step2-card').scrollIntoView({behavior:'smooth', block:'start'}), 300);
+}
+
+// ────────────────────────────────────────────────────────
+//  GS1-128 Parser
+// ────────────────────────────────────────────────────────
+function parseGS1orCode128(raw) {
+  const result = { seq: null, date: null, gtin: null, weight: null };
+
+  // GS1 Application Identifiers — scan for (21) serial and (11) pack date
+  // Strip parentheses notation if present: "(01)...(21)..."
+  const parenVersion = raw.replace(/\((\d{2,4})\)/g, '\x1d$1');
+  const str = parenVersion.replace(/\(|\)/g, '');
+
+  // Try structured GS1 parse
+  let i = 0;
+  while (i < str.length) {
+    const ai2 = str.slice(i, i + 2);
+    const ai4 = str.slice(i, i + 4);
+
+    if (ai2 === '01') { result.gtin = str.slice(i+2, i+16); i += 16; }
+    else if (ai2 === '21') {
+      // Serial/sequence: variable length up to 20 chars, terminated by FNC1 (\x1d) or next AI
+      const end = findVarEnd(str, i+2, 20);
+      result.seq = str.slice(i+2, end).replace(/\x1d/g,'');
+      i = end;
+    }
+    else if (ai2 === '10') {
+      const end = findVarEnd(str, i+2, 20);
+      if (!result.seq) result.seq = str.slice(i+2, end).replace(/\x1d/g,'');
+      i = end;
+    }
+    else if (ai2 === '11' || ai2 === '13' || ai2 === '15' || ai2 === '17') {
+      const d = str.slice(i+2, i+8);
+      if (d.length === 6) result.date = `20${d.slice(0,2)}-${d.slice(2,4)}-${d.slice(4,6)}`;
+      i += 8;
+    }
+    else if (ai4.startsWith('32') || ai4.startsWith('31')) { i += 10; }
+    else if (ai2 === '00') { i += 20; }
+    else { i++; }
+  }
+
+  // Fallback: try plain Code 128 — look for date-like and sequence-like patterns
+  if (!result.seq && !result.date) {
+    const seqMatch = raw.match(/(?:seq|serial|SEQ|SERIAL)[:\s]*([A-Z0-9\-]+)/i);
+    if (seqMatch) result.seq = seqMatch[1];
+    const dateMatch = raw.match(/(\d{6})(?:\d{8})?/);
+    if (dateMatch) {
+      const d = dateMatch[1];
+      result.date = `20${d.slice(0,2)}-${d.slice(2,4)}-${d.slice(4,6)}`;
+    }
+  }
+
+  return result;
+}
+
+function findVarEnd(str, start, maxLen) {
+  let end = start;
+  while (end < str.length && end < start + maxLen) {
+    if (str[end] === '\x1d') break;
+    // Heuristic: stop if next 2 chars look like an AI (digits) and we have some content
+    if (end > start + 1 && /^\d{2}/.test(str.slice(end)) && isKnownAI(str.slice(end, end+2))) break;
+    end++;
+  }
+  return end;
+}
+
+function isKnownAI(ai) {
+  return ['01','10','11','13','15','17','21','00','30','31','32'].includes(ai);
+}
+
+// ────────────────────────────────────────────────────────
+//  AI Vision — packager & product name
+// ────────────────────────────────────────────────────────
+let aiModalVideoEl = null;
+
+async function startAICamera() {
+  const aiKey = document.getElementById('set-ai-key').value.trim() || settings.aiKey;
+  if (!aiKey) {
+    toast('Add your Anthropic API key in Settings first');
+    switchTab('settings');
+    return;
+  }
+  document.getElementById('ai-capture-modal').classList.add('open');
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    aiModalStream = stream;
+    const vid = document.getElementById('ai-video-modal');
+    vid.srcObject = stream;
+    aiModalVideoEl = vid;
+  } catch(e) {
+    toast('Camera error: ' + e.message);
+    closeAIModal();
+  }
+}
+
+function closeAIModal() {
+  document.getElementById('ai-capture-modal').classList.remove('open');
+  if (aiModalStream) { aiModalStream.getTracks().forEach(t => t.stop()); aiModalStream = null; }
+  document.getElementById('ai-thinking-modal').classList.remove('show');
+}
+
+async function captureAndAnalyse() {
+  const aiKey = (document.getElementById('set-ai-key').value.trim()) || settings.aiKey;
+  if (!aiKey) { toast('No API key'); return; }
+  if (!aiModalVideoEl) return;
+
+  // Capture frame
+  const canvas = document.createElement('canvas');
+  canvas.width = aiModalVideoEl.videoWidth || 640;
+  canvas.height = aiModalVideoEl.videoHeight || 480;
+  canvas.getContext('2d').drawImage(aiModalVideoEl, 0, 0);
+  const base64 = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+
+  document.getElementById('ai-thinking-modal').classList.add('show');
+  document.getElementById('btn-capture').disabled = true;
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': aiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 300,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } },
+            { type: 'text', text: `This is a meat case label. Extract these fields and respond ONLY with valid JSON, no other text:
+{
+  "product_name": "the product description e.g. BNLS BEEF SHOULDER CLOD (FLAT IRON REMOVED)",
+  "packager_name": "the company/brand name e.g. Clear River Farms",
+  "est_number": "the EST number if visible e.g. 562M"
+}
+If a field is not visible or not present, use null. Respond with JSON only.` }
+          ]
+        }]
+      })
+    });
+
+    const data = await response.json();
+    const text = data.content?.[0]?.text || '';
+    let parsed = {};
+    try { parsed = JSON.parse(text.replace(/```json|```/g, '').trim()); } catch(e) {}
+
+    if (parsed.product_name) {
+      const el = document.getElementById('f-product');
+      el.value = parsed.product_name;
+      el.classList.add('auto-filled');
+    }
+    if (parsed.packager_name) {
+      const el = document.getElementById('f-packager');
+      el.value = parsed.packager_name;
+      el.classList.add('auto-filled');
+    }
+    if (parsed.est_number && !document.getElementById('f-est').value) {
+      const el = document.getElementById('f-est');
+      el.value = parsed.est_number;
+      el.classList.add('auto-filled');
+    }
+
+    // Mark step 2 done
+    document.getElementById('step2-num').classList.remove('active');
+    document.getElementById('step2-num').classList.add('done');
+    document.getElementById('step2-num').innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+    document.getElementById('step2-badge').textContent = 'Done';
+    document.getElementById('step2-badge').classList.remove('pending');
+    document.getElementById('step2-badge').classList.add('ok');
+
+    closeAIModal();
+    toast('✓ Label read — fields filled');
+  } catch(e) {
+    toast('AI error: ' + e.message);
+    document.getElementById('ai-thinking-modal').classList.remove('show');
+    document.getElementById('btn-capture').disabled = false;
+  }
+}
+
+// ────────────────────────────────────────────────────────
+//  Save entry
+// ────────────────────────────────────────────────────────
+async function saveEntry() {
+  const product = document.getElementById('f-product').value.trim();
+  const packager = document.getElementById('f-packager').value.trim();
+  const est = document.getElementById('f-est').value.trim();
+  const seq = document.getElementById('f-seq').value.trim();
+  const date = document.getElementById('f-date').value.trim();
+
+  if (!seq && !product) { toast('Scan at least one barcode first'); return; }
+
+  const entry = {
+    id: Date.now(),
+    timestamp: new Date().toISOString(),
+    product, packager, est, seq, date,
+    saved: false
+  };
+
+  // Try to push to Sheets
+  const pushed = await pushToSheets([entry]);
+  entry.saved = pushed;
+
+  entries.unshift(entry);
+  localStorage.setItem('ms_entries', JSON.stringify(entries));
+
+  toast(pushed ? '✓ Saved to Google Sheets' : '✓ Saved locally (Sheets not connected)');
+  renderLog();
+  clearForm();
+}
+
+// ────────────────────────────────────────────────────────
+//  Google Sheets API
+// ────────────────────────────────────────────────────────
+function getToken() {
+  return document.getElementById('set-token').value.trim() || settings.token || '';
+}
+function getSheetId() {
+  return document.getElementById('set-sheet-id').value.trim() || settings.sheetId || '';
+}
+function getSheetTab() {
+  return document.getElementById('set-sheet-tab').value.trim() || settings.sheetTab || 'Scans';
+}
+
+async function pushToSheets(rows) {
+  const token = getToken();
+  const sheetId = getSheetId();
+  if (!token || !sheetId) return false;
+
+  const values = rows.map(r => [
+    r.timestamp, r.product, r.packager, r.est, r.seq, r.date
+  ]);
+
+  // Ensure header row exists on first use
+  try {
+    await ensureHeader(token, sheetId, getSheetTab());
+  } catch(e) {}
+
+  try {
+    const res = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(getSheetTab())}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+      {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ values })
+      }
+    );
+    if (res.status === 401) { toast('Sheets: token expired — re-authenticate in Settings'); return false; }
+    return res.ok;
+  } catch(e) {
+    return false;
+  }
+}
+
+async function ensureHeader(token, sheetId, tab) {
+  // Check if A1 has content already
+  const res = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(tab)}!A1`,
+    { headers: { 'Authorization': `Bearer ${token}` } }
+  );
+  const data = await res.json();
+  if (!data.values || !data.values[0]) {
+    // Write header
+    await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(tab)}!A1?valueInputOption=USER_ENTERED`,
+      {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ values: [['Timestamp','Product Name','Packager','EST #','Sequence #','Pack Date']] })
+      }
+    );
+  }
+}
+
+async function syncQueue() {
+  const unsynced = entries.filter(e => !e.saved);
+  if (!unsynced.length) { toast('Nothing to sync'); return; }
+  const ok = await pushToSheets(unsynced);
+  if (ok) {
+    unsynced.forEach(e => e.saved = true);
+    localStorage.setItem('ms_entries', JSON.stringify(entries));
+    toast(`✓ Synced ${unsynced.length} entries`);
+    renderLog();
+  } else {
+    toast('Sync failed — check token/connection');
+  }
+}
+
+function initiateGoogleAuth() {
+  const clientId = settings.googleClientId || '';
+  if (!clientId) {
+    toast('See Settings notes — use OAuth Playground for a quick token');
+    return;
+  }
+  const redirect = window.location.href.split('?')[0];
+  const scope = 'https://www.googleapis.com/auth/spreadsheets';
+  const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirect)}&response_type=token&scope=${encodeURIComponent(scope)}`;
+  window.location.href = url;
+}
+
+// Handle OAuth redirect token
+(function checkOAuthRedirect() {
+  const hash = window.location.hash;
+  const match = hash.match(/access_token=([^&]+)/);
+  if (match) {
+    settings.token = match[1];
+    localStorage.setItem('ms_settings', JSON.stringify(settings));
+    window.history.replaceState({}, '', window.location.pathname);
+    toast('✓ Google account connected!');
+    updateSheetsStatus();
+  }
+})();
+
+// ────────────────────────────────────────────────────────
+//  Sheets modal
+// ────────────────────────────────────────────────────────
+function openSheetsModal() {
+  document.getElementById('m-sheet-id').value = getSheetId();
+  document.getElementById('m-sheet-tab').value = getSheetTab();
+  document.getElementById('sheets-modal').classList.add('open');
+}
+function closeSheetsModal() { document.getElementById('sheets-modal').classList.remove('open'); }
+function saveSheetsConfig() {
+  settings.sheetId = document.getElementById('m-sheet-id').value.trim();
+  settings.sheetTab = document.getElementById('m-sheet-tab').value.trim() || 'Scans';
+  document.getElementById('set-sheet-id').value = settings.sheetId;
+  document.getElementById('set-sheet-tab').value = settings.sheetTab;
+  localStorage.setItem('ms_settings', JSON.stringify(settings));
+  updateSheetsStatus();
+  closeSheetsModal();
+  toast('Sheets configured');
+}
+function updateSheetsStatus() {
+  const btn = document.getElementById('sheets-status');
+  const lbl = document.getElementById('sheets-label');
+  const hasToken = !!getToken();
+  const hasId = !!getSheetId();
+  if (hasToken && hasId) {
+    btn.classList.remove('disconnected'); btn.classList.add('connected');
+    lbl.textContent = 'Sheets ✓';
+    document.getElementById('sync-btn').style.display = 'flex';
+  } else {
+    btn.classList.remove('connected'); btn.classList.add('disconnected');
+    lbl.textContent = hasId ? 'No token' : 'Connect Sheets';
+    document.getElementById('sync-btn').style.display = entries.some(e=>!e.saved) ? 'flex' : 'none';
+  }
+}
+
+// ────────────────────────────────────────────────────────
+//  Settings persistence
+// ────────────────────────────────────────────────────────
+function saveSettings() {
+  settings.sheetId = document.getElementById('set-sheet-id').value.trim();
+  settings.sheetTab = document.getElementById('set-sheet-tab').value.trim();
+  settings.aiKey = document.getElementById('set-ai-key').value.trim();
+  settings.defaultPackager = document.getElementById('set-default-packager').value.trim();
+  settings.defaultEst = document.getElementById('set-default-est').value.trim();
+  localStorage.setItem('ms_settings', JSON.stringify(settings));
+  updateSheetsStatus();
+}
+function tokenChanged() {
+  settings.token = document.getElementById('set-token').value.trim();
+  localStorage.setItem('ms_settings', JSON.stringify(settings));
+  updateSheetsStatus();
+}
+
+// ────────────────────────────────────────────────────────
+//  Log
+// ────────────────────────────────────────────────────────
+function renderLog() {
+  const list = document.getElementById('log-list');
+  const count = entries.length;
+  document.getElementById('log-count-nav').textContent = count;
+  document.getElementById('log-count-badge').textContent = count;
+
+  if (!count) {
+    list.innerHTML = '<div class="log-empty">No entries yet.<br>Start scanning to add rows.</div>';
+    return;
+  }
+  list.innerHTML = entries.map(e => {
+    const d = new Date(e.timestamp);
+    const time = d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+    const dateStr = d.toLocaleDateString([], {month:'short', day:'numeric'});
+    return `<div class="log-item">
+      <div class="log-dot ${e.saved ? 'saved' : 'queued'}"></div>
+      <div class="log-body">
+        <div class="log-name">${e.product || '(No product name)'}</div>
+        <div class="log-meta">Seq: ${e.seq||'—'} · EST: ${e.est||'—'} · ${e.packager||'—'}</div>
+        <div class="log-meta">Pack date: ${e.date||'—'} · ${e.saved ? '✓ Saved to Sheets' : '⏳ Not synced'}</div>
+      </div>
+      <div class="log-time">${dateStr}<br>${time}</div>
+    </div>`;
+  }).join('');
+}
+
+function confirmClear() {
+  if (!entries.length) { toast('Nothing to clear'); return; }
+  if (confirm(`Delete all ${entries.length} entries? This cannot be undone.`)) {
+    entries = [];
+    localStorage.setItem('ms_entries', JSON.stringify(entries));
+    renderLog();
+    toast('Log cleared');
+  }
+}
+
+function exportCSV() {
+  if (!entries.length) { toast('No entries to export'); return; }
+  const rows = [['Timestamp','Product Name','Packager','EST #','Sequence #','Pack Date']];
+  entries.forEach(e => rows.push([e.timestamp, e.product, e.packager, e.est, e.seq, e.date]));
+  const csv = rows.map(r => r.map(v => `"${(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type: 'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `meatscan_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ────────────────────────────────────────────────────────
+//  Form clear
+// ────────────────────────────────────────────────────────
+function clearForm() {
+  ['f-product','f-seq','f-date','f-est'].forEach(id => {
+    const el = document.getElementById(id);
+    el.value = '';
+    el.classList.remove('auto-filled','filled');
+  });
+  // Reset packager to default
+  const pkg = document.getElementById('f-packager');
+  pkg.value = settings.defaultPackager || '';
+  pkg.classList.remove('auto-filled','filled');
+  const est = document.getElementById('f-est');
+  est.value = settings.defaultEst || '';
+
+  // Reset step indicators
+  document.getElementById('step1-num').className = 'step-num active';
+  document.getElementById('step1-num').textContent = '1';
+  document.getElementById('step1-badge').textContent = 'Pending';
+  document.getElementById('step1-badge').className = 'step-badge pending';
+  document.getElementById('step2-num').className = 'step-num';
+  document.getElementById('step2-num').textContent = '2';
+  document.getElementById('step2-badge').textContent = 'Pending';
+  document.getElementById('step2-badge').className = 'step-badge pending';
+
+  // Hide result overlays
+  document.getElementById('vf1-result').style.display = 'none';
+  document.getElementById('vf1-placeholder').style.display = 'flex';
+  document.getElementById('ai-placeholder').style.display = 'flex';
+  document.getElementById('ai-snap').style.display = 'none';
+}
+
+// ────────────────────────────────────────────────────────
+//  Toast
+// ────────────────────────────────────────────────────────
+let toastTimer = null;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+// Close modals on bg tap
+document.querySelectorAll('.modal-bg').forEach(bg => {
+  bg.addEventListener('click', e => {
+    if (e.target === bg) {
+      bg.classList.remove('open');
+      if (aiModalStream) { aiModalStream.getTracks().forEach(t=>t.stop()); aiModalStream=null; }
+    }
+  });
+});
+
+// ── Boot ──
+init();
+</script>
+</body>
+</html>
