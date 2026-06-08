@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<title>MeatScan</title>
+<style>
+  :root {
+    --green:#2e7d32;--green-light:#e8f5e9;--green-mid:#4caf50;
+    --blue:#1565c0;--blue-light:#e3f2fd;
+    --red:#c62828;--red-light:#ffebee;
+    --amber:#f57f17;--amber-light:#fff8e1;
+    --gray0:#fafafa;--gray1:#f5f5f5;--gray2:#eeeeee;--gray3:#e0e0e0;
+    --gray4:#bdbdbd;--gray6:#757575;--gray8:#424242;--gray9:#212121;
+    --white:#ffffff;--radius:12px;--radius-sm:8px;
+    --font:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--gray1);color:var(--gray9)}
+  #app{display:flex;flex-direction:column;height:100vh;height:100dvh;max-width:480px;margin:0 auto;background:var(--white);position:relative;overflow:hidden}
+
+  /* ── Header ── */
+  header{background:var(--gray9);color:white;padding:14px 16px 12px;display:flex;align-items:center;gap:10px;flex-shrink:0}
+  header h1{font-size:18px;font-weight:600;flex:1;letter-spacing:-.3px}
+  #conn-pill{font-size:12px;padding:4px 10px;border-radius:20px;font-weight:500;display:flex;align-items:center;gap:5px;background:var(--green);color:white}
+
+  /* ── Session banner ── */
+  #session-banner{background:var(--green-light);border-bottom:1px solid #c8e6c9;padding:9px 14px;display:flex;align-items:center;gap:8px;flex-shrink:0}
+  #session-banner span{font-size:13px;color:var(--green);font-weight:500;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  /* ── Nav ── */
+  nav{display:flex;background:var(--white);border-bottom:1px solid var(--gray3);flex-shrink:0}
+  nav button{flex:1;padding:10px 4px 9px;font-size:12px;font-weight:500;color:var(--gray6);background:none;border:none;cursor:pointer;border-bottom:3px solid transparent;transition:all .15s;display:flex;flex-direction:column;align-items:center;gap:3px}
+  nav button svg{width:20px;height:20px}
+  nav button.active{color:var(--green);border-bottom-color:var(--green)}
+
+  /* ── Tabs ── */
+  .tab-content{display:none;flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .tab-content.active{display:block}
+
+
+  /* ── Cutter selector ── */
+  .cutter-row{padding:12px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;border-bottom:1px solid var(--gray2);background:var(--white);transition:background .1s}
+  .cutter-row:last-child{border-bottom:none}
+  .cutter-row.selected{background:var(--green-light)}
+  .cutter-check{width:22px;height:22px;border-radius:50%;border:2px solid var(--gray3);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s}
+  .cutter-row.selected .cutter-check{background:var(--green);border-color:var(--green)}
+  .cutter-name{font-size:15px;font-weight:500}
+  /* ── Start of Day screen ── */
+  #sod-screen{position:absolute;inset:0;background:var(--white);z-index:100;display:flex;flex-direction:column;overflow-y:auto}
+  #sod-screen.hidden{display:none}
+  .sod-header{background:var(--gray9);color:white;padding:24px 20px 18px;flex-shrink:0}
+  .sod-header h2{font-size:22px;font-weight:700;margin-bottom:4px}
+  .sod-header p{font-size:13px;color:#aaa}
+  .sod-body{padding:20px;flex:1}
+  .sod-field{margin-bottom:18px}
+  .sod-field label{font-size:11px;font-weight:700;color:var(--gray6);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:6px}
+  .sod-field input,.sod-field textarea{width:100%;padding:12px 14px;border:1.5px solid var(--gray3);border-radius:var(--radius-sm);font-size:16px;font-family:var(--font);color:var(--gray9);background:var(--white);outline:none;transition:border-color .15s}
+  .sod-field input:focus,.sod-field textarea:focus{border-color:var(--green)}
+  .sod-field textarea{resize:none;height:80px;line-height:1.5}
+  .sod-field .hint{font-size:12px;color:var(--gray6);margin-top:5px}
+  .sod-prev{background:var(--amber-light);border:1px solid #ffe082;border-radius:var(--radius-sm);padding:14px;margin-bottom:20px}
+  .sod-prev h3{font-size:13px;font-weight:700;color:var(--amber);margin-bottom:6px}
+  .sod-prev p{font-size:12px;color:var(--gray8);line-height:1.5;margin-bottom:10px}
+
+  /* ── Buttons ── */
+  .btn{padding:11px 18px;border-radius:var(--radius-sm);font-size:14px;font-weight:600;border:none;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:7px;transition:all .15s}
+  .btn:active{transform:scale(.97)}
+  .btn-green{background:var(--green);color:white}
+  .btn-blue{background:var(--blue);color:white}
+  .btn-outline{background:transparent;color:var(--gray8);border:1.5px solid var(--gray3)}
+  .btn-amber{background:var(--amber-light);color:var(--amber);border:1px solid #ffe082}
+  .btn-danger{background:var(--red-light);color:var(--red);border:1px solid #ef9a9a}
+  .btn-dark{background:var(--gray9);color:white}
+  .btn-sm{padding:7px 12px;font-size:12px;border-radius:6px}
+  .btn-full{width:100%;justify-content:center}
+  .btn-row{display:flex;gap:8px}
+
+  /* ── SCAN TAB ── */
+  /* Step indicator */
+  .scan-steps{display:flex;align-items:center;padding:14px 16px 10px;gap:0}
+  .scan-step{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1}
+  .scan-step-num{width:28px;height:28px;border-radius:50%;background:var(--gray3);color:var(--gray6);font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .scan-step-num.active{background:var(--blue);color:white}
+  .scan-step-num.done{background:var(--green);color:white}
+  .scan-step-label{font-size:10px;color:var(--gray6);font-weight:500;text-align:center}
+  .scan-step-line{flex:1;height:2px;background:var(--gray3);margin-bottom:14px}
+  .scan-step-line.done{background:var(--green)}
+
+  /* Muscle grid */
+  #muscle-panel{padding:0 14px 14px}
+  .muscle-search{width:100%;padding:10px 14px;border:1.5px solid var(--gray3);border-radius:var(--radius-sm);font-size:15px;font-family:var(--font);outline:none;margin-bottom:10px}
+  .muscle-search:focus{border-color:var(--green)}
+  .muscle-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .muscle-btn{padding:12px 10px;border:1.5px solid var(--gray3);border-radius:var(--radius-sm);background:var(--white);font-size:13px;font-weight:500;color:var(--gray9);cursor:pointer;text-align:center;line-height:1.3;transition:all .15s}
+  .muscle-btn:active{transform:scale(.97)}
+  .muscle-btn.selected{background:var(--green);color:white;border-color:var(--green)}
+  .muscle-btn.other{border-style:dashed;color:var(--gray6)}
+
+  /* Scan panel */
+  #scan-panel{padding:0 14px 14px;display:none}
+  .selected-cut-chip{background:var(--green-light);border:1px solid #a5d6a7;border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px}
+  .selected-cut-chip span{font-size:14px;font-weight:600;color:var(--green);flex:1}
+  .scanner-wrap{position:relative;background:#111;border-radius:10px;overflow:hidden;width:100%;aspect-ratio:4/3}
+  #scanner-container{width:100%;height:100%;position:absolute;top:0;left:0}
+  #scanner-container canvas.drawingBuffer{position:absolute;top:0;left:0;width:100%!important;height:100%!important}
+  .scan-corners{position:absolute;inset:0;pointer-events:none}
+  .scan-corners::before,.scan-corners::after{content:'';position:absolute;width:30px;height:30px;border-color:#4caf50;border-style:solid}
+  .scan-corners::before{top:16px;left:16px;border-width:3px 0 0 3px;border-radius:3px 0 0 0}
+  .scan-corners::after{top:16px;right:16px;border-width:3px 3px 0 0;border-radius:0 3px 0 0}
+  .scan-corners-b::before,.scan-corners-b::after{content:'';position:absolute;width:30px;height:30px;border-color:#4caf50;border-style:solid}
+  .scan-corners-b::before{bottom:16px;left:16px;border-width:0 0 3px 3px;border-radius:0 0 0 3px}
+  .scan-corners-b::after{bottom:16px;right:16px;border-width:0 3px 3px 0;border-radius:0 0 3px 0}
+  .scan-placeholder{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#555;font-size:13px;text-align:center;gap:8px;padding:20px;pointer-events:none}
+  .scan-result-overlay{position:absolute;inset:0;background:rgba(0,0,0,.72);display:none;flex-direction:column;align-items:center;justify-content:center;gap:8px}
+  .scan-result-overlay.show{display:flex}
+  .result-icon{width:52px;height:52px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center}
+  .result-text{color:white;font-size:15px;font-weight:600}
+  .result-sub{color:#bbb;font-size:12px;text-align:center;padding:0 20px;line-height:1.6}
+
+  /* Auto-filled fields */
+  .autofill-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px}
+  .autofill-field{background:var(--blue-light);border:1.5px solid #90caf9;border-radius:var(--radius-sm);padding:8px 10px}
+  .autofill-field label{font-size:10px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:3px}
+  .autofill-field input{width:100%;border:none;background:transparent;font-size:13px;font-weight:600;color:var(--gray9);font-family:var(--font);outline:none}
+  /* Packager row */
+  .packager-row{margin-top:10px}
+  .packager-row label{font-size:11px;font-weight:600;color:var(--gray6);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px}
+  .packager-row select{width:100%;padding:10px 12px;border:1.5px solid var(--gray3);border-radius:var(--radius-sm);font-size:15px;font-family:var(--font);background:var(--white);color:var(--gray9);outline:none}
+  .packager-row select:focus{border-color:var(--green)}
+  .packager-row input{width:100%;padding:10px 12px;border:1.5px solid var(--gray3);border-radius:var(--radius-sm);font-size:15px;font-family:var(--font);background:var(--white);color:var(--gray9);outline:none;margin-top:6px;display:none}
+  .packager-row input:focus{border-color:var(--green)}
+
+  /* Save bar */
+  .save-bar{padding:12px 14px;background:var(--white);border-top:1px solid var(--gray3);display:flex;gap:10px;flex-shrink:0}
+  .save-bar .btn{flex:1;margin:0}
+
+  /* ── REVIEW TAB ── */
+  #log-tab{padding-bottom:130px}
+  .log-toolbar{padding:12px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--gray3);background:var(--gray0);position:sticky;top:0;z-index:10}
+  .log-toolbar h2{font-size:15px;font-weight:600;flex:1}
+  .log-count-badge{background:var(--gray9);color:white;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px}
+  .log-empty{padding:40px 20px;text-align:center;color:var(--gray6);font-size:14px;line-height:1.6}
+
+  /* Review items — quantities filled at end of day */
+  .review-item{padding:14px;border-bottom:1px solid var(--gray2)}
+  .review-item-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px}
+  .ri-dot{width:10px;height:10px;border-radius:50%;margin-top:5px;flex-shrink:0}
+  .ri-dot.pending{background:var(--amber)}.ri-dot.complete{background:var(--green-mid)}
+  .ri-name{font-size:15px;font-weight:700;flex:1}
+  .ri-meta{font-size:12px;color:var(--gray6);margin-top:2px;line-height:1.5}
+  .ri-qty-row{display:flex;gap:8px;align-items:center}
+  .ri-qty-row input[type=number]{width:80px;padding:9px 10px;border:1.5px solid var(--gray3);border-radius:var(--radius-sm);font-size:16px;font-family:var(--font);outline:none;text-align:center}
+  .ri-qty-row input:focus{border-color:var(--green)}
+  .ri-qty-row select{flex:1;padding:9px 10px;border:1.5px solid var(--gray3);border-radius:var(--radius-sm);font-size:14px;font-family:var(--font);background:var(--white);outline:none}
+  .ri-qty-row select:focus{border-color:var(--green)}
+
+  .eod-bar{padding:12px 14px;border-top:1px solid var(--gray3);background:var(--white);position:fixed;bottom:0;width:100%;max-width:480px;display:flex;flex-direction:column;gap:6px}
+  .eod-bar-btns{display:flex;gap:8px}
+  .eod-bar-btns .btn{flex:1;margin:0}
+  .eod-progress{font-size:11px;color:var(--gray6);text-align:center}
+
+  /* ── Settings ── */
+  #settings-tab{padding:14px 14px 40px}
+  .settings-section{margin-bottom:22px}
+  .settings-section h3{font-size:12px;font-weight:700;color:var(--gray6);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+  .settings-card{background:var(--white);border:1px solid var(--gray3);border-radius:var(--radius);overflow:hidden}
+  .settings-row{padding:13px 14px;border-bottom:1px solid var(--gray2);display:flex;align-items:center;gap:12px}
+  .settings-row:last-child{border-bottom:none}
+  .settings-row label{font-size:14px;flex:1}
+  .settings-row select,.settings-row input[type=text]{padding:8px 10px;border:1.5px solid var(--gray3);border-radius:6px;font-size:13px;background:var(--white);outline:none}
+  .info-box{font-size:11px;color:var(--gray6);line-height:1.6;background:var(--green-light);padding:10px 12px;border-radius:6px;border-left:3px solid var(--green);margin-top:8px}
+
+  /* ── Toast / Spinner ── */
+  #toast{position:fixed;bottom:150px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--gray9);color:white;padding:10px 18px;border-radius:20px;font-size:13px;font-weight:500;opacity:0;transition:all .25s;pointer-events:none;white-space:nowrap;z-index:1000;max-width:90vw;text-align:center}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .spinner{width:18px;height:18px;border:2px solid rgba(255,255,255,.3);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite;display:inline-block;flex-shrink:0}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  #photo-input{display:none}
+
+  /* Other cut modal */
+  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:none;align-items:flex-end;justify-content:center}
+  .modal-bg.open{display:flex}
+  .modal{background:var(--white);border-radius:18px 18px 0 0;padding:20px 18px 34px;width:100%;max-width:480px}
+  .modal-handle{width:40px;height:4px;background:var(--gray3);border-radius:2px;margin:0 auto 16px}
+  .modal h2{font-size:17px;font-weight:700;margin-bottom:14px}
+  .modal input{width:100%;padding:12px 14px;border:1.5px solid var(--gray3);border-radius:var(--radius-sm);font-size:16px;font-family:var(--font);outline:none;margin-bottom:14px}
+  .modal input:focus{border-color:var(--green)}
+  .modal-actions{display:flex;gap:10px}
+  .modal-actions .btn{flex:1;margin:0}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ── START OF DAY SCREEN ── -->
+  <div id="sod-screen">
+    <div class="sod-header">
+      <h2>MeatScan</h2>
+      <p id="sod-subtitle">Start a new cutting day</p>
+    </div>
+    <div class="sod-body">
+      <div class="sod-prev" id="prev-banner" style="display:none">
+        <h3>⚠ Unsubmitted day found</h3>
+        <p id="prev-text"></p>
+        <div class="btn-row">
+          <button class="btn btn-danger btn-sm" onclick="forcePush()">Push incomplete &amp; start new</button>
+          <button class="btn btn-outline btn-sm" onclick="resumeDay()">Resume that day</button>
+        </div>
+      </div>
+      <div id="sod-form">
+        <div class="sod-field">
+          <label>Date</label>
+          <input type="date" id="sod-date"/>
+        </div>
+        <div class="sod-field">
+          <label>Cutter(s) on shift</label>
+          <div id="cutter-list" style="display:flex;flex-direction:column;gap:0;border:1.5px solid var(--gray3);border-radius:var(--radius-sm);overflow:hidden;margin-bottom:6px"></div>
+          <div style="display:flex;gap:8px;margin-top:6px">
+            <input type="text" id="new-cutter-input" placeholder="Add another cutter…"
+              style="flex:1;padding:9px 12px;border:1.5px solid var(--gray3);border-radius:var(--radius-sm);font-size:14px;font-family:var(--font);outline:none"/>
+            <button class="btn btn-outline btn-sm" onclick="addCutter()" style="flex-shrink:0">Add</button>
+          </div>
+          <div class="hint">Tap names to select who is cutting today</div>
+        </div>
+        <button class="btn btn-green btn-full" style="font-size:16px;padding:14px" onclick="startDay()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          Start cutting day
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MAIN APP ── -->
+  <header>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="8" y1="3" x2="8" y2="21"/><line x1="3" y1="8" x2="8" y2="8"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="16" x2="8" y2="16"/></svg>
+    <h1>MeatScan</h1>
+    <div id="conn-pill">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14H7v-2h5v2zm5-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+      Sheets ✓
+    </div>
+  </header>
+
+  <div id="session-banner">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="flex-shrink:0"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    <span id="session-text">No active session</span>
+    <button class="btn btn-outline btn-sm" style="font-size:11px;padding:4px 10px;flex-shrink:0" onclick="showSod()">New day</button>
+  </div>
+
+  <nav>
+    <button class="active" onclick="switchTab('scan')" id="tab-scan">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><line x1="14" y1="17" x2="21" y2="17"/><line x1="17" y1="14" x2="17" y2="21"/></svg>
+      Scan
+    </button>
+    <button onclick="switchTab('log')" id="tab-log">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3" cy="6" r="1" fill="currentColor"/><circle cx="3" cy="12" r="1" fill="currentColor"/><circle cx="3" cy="18" r="1" fill="currentColor"/></svg>
+      Review
+      <span id="log-count-nav" style="font-size:11px;font-weight:700">0</span>
+    </button>
+    <button onclick="switchTab('settings')" id="tab-settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Settings
+    </button>
+  </nav>
+
+  <!-- ── SCAN TAB ── -->
+  <div class="tab-content active" id="scan-tab">
+
+    <!-- Step indicator -->
+    <div class="scan-steps">
+      <div class="scan-step">
+        <div class="scan-step-num active" id="stepnum1">1</div>
+        <div class="scan-step-label">Select Cut</div>
+      </div>
+      <div class="scan-step-line" id="stepline1"></div>
+      <div class="scan-step">
+        <div class="scan-step-num" id="stepnum2">2</div>
+        <div class="scan-step-label">Scan Barcode</div>
+      </div>
+      <div class="scan-step-line" id="stepline2"></div>
+      <div class="scan-step">
+        <div class="scan-step-num" id="stepnum3">3</div>
+        <div class="scan-step-label">Confirm</div>
+      </div>
+    </div>
+
+    <!-- Step 1: Muscle grid -->
+    <div id="muscle-panel">
+      <input type="text" class="muscle-search" id="muscle-search" placeholder="Search cuts…" oninput="filterMuscles()"/>
+      <div class="muscle-grid" id="muscle-grid"></div>
+    </div>
+
+    <!-- Step 2+3: Scan + confirm -->
+    <div id="scan-panel">
+      <!-- Selected cut chip -->
+      <div class="selected-cut-chip">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="color:var(--green);flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg>
+        <span id="selected-cut-label">—</span>
+        <button onclick="goToStep1()" style="background:none;border:none;color:var(--gray6);font-size:12px;cursor:pointer;padding:0">Change</button>
+      </div>
+
+      <!-- Scanner -->
+      <div class="scanner-wrap">
+        <div id="scanner-container"></div>
+        <div class="scan-corners"></div>
+        <div class="scan-corners-b"></div>
+        <div class="scan-placeholder" id="scan-ph">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/><rect x="18" y="18" width="3" height="3"/></svg>
+          <span>Tap a button below to scan<br>the weigh ticket barcode</span>
+        </div>
+        <div class="scan-result-overlay" id="scan-result">
+          <div class="result-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+          <div class="result-text">Barcode read!</div>
+          <div class="result-sub" id="result-sub"></div>
+        </div>
+      </div>
+
+      <!-- Scan buttons -->
+      <div class="btn-row" style="margin-top:10px">
+        <button class="btn btn-dark btn-sm" id="btn-live" onclick="toggleLive()" style="flex:1">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="4"/><path d="M2 12h2M20 12h2M12 2v2M12 20v2"/></svg>
+          Live scan
+        </button>
+        <button class="btn btn-amber btn-sm" onclick="triggerPhoto()" style="flex:1">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          Snap photo
+        </button>
+      </div>
+      <input type="file" id="photo-input" accept="image/*" capture="environment" onchange="handlePhoto(event)"/>
+
+      <!-- Auto-filled fields -->
+      <div class="autofill-row">
+        <div class="autofill-field">
+          <label>Sequence #</label>
+          <input type="text" id="f-seq" placeholder="—"/>
+        </div>
+        <div class="autofill-field">
+          <label>Pack Date</label>
+          <input type="text" id="f-date" placeholder="—"/>
+        </div>
+        <div class="autofill-field">
+          <label>EST #</label>
+          <input type="text" id="f-est" placeholder="—"/>
+        </div>
+      </div>
+
+      <!-- Packager -->
+      <div class="packager-row">
+        <label>Packager</label>
+        <select id="f-packager-select" onchange="handlePackagerSelect()">
+          <option value="">— Select —</option>
+          <option>Swift</option>
+          <option>Excel</option>
+          <option>Long Prairie</option>
+          <option>5-Star</option>
+          <option>National Beef</option>
+          <option>Clear River Farms</option>
+          <option>Star Ranch Angus</option>
+          <option>Iowa Premium Angus</option>
+          <option>Black Canyon</option>
+          <option>American Foods Group</option>
+          <option value="__other__">Other (type below)</option>
+        </select>
+        <input type="text" id="f-packager-other" placeholder="Type packager name…"/>
+      </div>
+    </div>
+  </div><!-- /scan-tab -->
+
+  <div class="save-bar" id="save-bar">
+    <button class="btn btn-outline btn-sm" onclick="resetScan()" style="flex:0 0 auto;padding:11px 14px">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.98"/></svg>
+      Reset
+    </button>
+    <button class="btn btn-green" id="btn-add" onclick="addScan()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add to today
+    </button>
+  </div>
+
+  <!-- ── REVIEW TAB ── -->
+  <div class="tab-content" id="log-tab">
+    <div class="log-toolbar">
+      <h2>Today's scans</h2>
+      <span class="log-count-badge" id="log-count-badge">0</span>
+    </div>
+    <div id="log-list"><div class="log-empty">No scans yet.<br>Select a cut and scan a barcode to begin.</div></div>
+    <div class="eod-bar">
+      <div class="eod-progress" id="eod-progress"></div>
+      <div class="eod-bar-btns">
+        <button class="btn btn-outline btn-sm" onclick="exportCSV()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          CSV
+        </button>
+        <button class="btn btn-green" id="btn-submit" onclick="submitDay()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          Finalize &amp; Submit
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SETTINGS TAB ── -->
+  <div class="tab-content" id="settings-tab">
+    <div class="settings-section" style="margin-top:14px">
+      <h3>Sheet Connection</h3>
+      <div class="settings-card">
+        <div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:4px">
+          <div style="font-size:13px;color:var(--green);font-weight:500">✓ Connected to shared Google Sheet</div>
+          <div class="info-box">Pre-configured. No sign-in needed. All devices write to the same sheet automatically.</div>
+        </div>
+      </div>
+    </div>
+    <div class="settings-section">
+      <h3>Defaults</h3>
+      <div class="settings-card">
+        <div class="settings-row">
+          <label>Default packager</label>
+          <select id="set-default-packager" onchange="saveSettings()">
+            <option value="">None</option>
+            <option>Swift</option><option>Excel</option><option>Long Prairie</option>
+            <option>5-Star</option><option>National Beef</option><option>Clear River Farms</option>
+            <option>Star Ranch Angus</option><option>Iowa Premium Angus</option>
+            <option>Black Canyon</option><option>American Foods Group</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="settings-section">
+      <h3>About</h3>
+      <div class="settings-card">
+        <div class="settings-row"><label style="color:var(--gray6);font-size:13px">MeatScan v6.0 · Select cut → Scan barcode → Finalize at end of day.</label></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<!-- Other cut modal -->
+<div class="modal-bg" id="other-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2>Enter cut name</h2>
+    <input type="text" id="other-cut-input" placeholder="e.g. Beef Cheeks"/>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeOtherModal()">Cancel</button>
+      <button class="btn btn-green" onclick="confirmOtherCut()">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- barcode decoding handled server-side via zxing.org -->
+<script>
+// ── Config ──────────────────────────────────────────────
+const PROXY_URL    = 'https://script.google.com/macros/s/AKfycbyk9B2QwIT2LdL_FP7bC3pP6YiaBDtQVfmseNGH8a1kdJnJdkq284LA28Yxhay6LHugFg/exec';
+const SETTINGS_KEY = 'ms_settings';
+const SESSION_KEY  = 'ms_session';
+
+// ── Muscle list ─────────────────────────────────────────
+const CUTS = [
+  'Beef Shank','Bone-In Ribeye','Bone-In Short Ribs','Boneless Ribeye',
+  'Bottom Round Flat','Brisket','Chuck Roll','Clod',
+  'Eye of Round','Flank Steak','Knuckle','Shortloin',
+  'Skirt Steak','Striploin','Tenderloin','Top Round',
+  'Top Sirloin (Top Butt)','Tri-Tip'
+];
+
+// ── State ───────────────────────────────────────────────
+let settings    = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+let session     = JSON.parse(localStorage.getItem(SESSION_KEY)  || 'null');
+let selectedCut = null;
+let liveRunning = false;
+let currentStep = 1; // 1=muscle, 2=scan
+
+// ── Boot ────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  loadSettingsUI();
+  buildCutterList();
+  buildMuscleGrid();
+  const today = todayStr();
+  if (session && !session.submitted && session.date !== today) {
+    showSod();
+    document.getElementById('prev-banner').style.display = 'block';
+    document.getElementById('prev-text').textContent =
+      `There are ${session.scans.length} unsubmitted scan(s) from ${session.date}. Push them to Sheets or resume to finish.`;
+    document.getElementById('sod-form').style.display = 'none';
+  } else if (session && !session.submitted && session.date === today) {
+    hideSod();
+    updateBanner();
+    renderLog();
+  } else {
+    showSod();
+    document.getElementById('sod-date').value = today;
+  }
+});
+
+// ── Muscle grid ─────────────────────────────────────────
+function buildMuscleGrid(filter) {
+  const grid = document.getElementById('muscle-grid');
+  const list = filter
+    ? CUTS.filter(c => c.toLowerCase().includes(filter.toLowerCase()))
+    : CUTS;
+  grid.innerHTML = list.map(c =>
+    `<button class="muscle-btn${selectedCut===c?' selected':''}" onclick="selectCut('${c.replace(/'/g,"\\'")}')">
+      ${c}
+    </button>`
+  ).join('') +
+  `<button class="muscle-btn other" onclick="openOtherModal()">
+    ＋ Other / New
+  </button>`;
+}
+
+function filterMuscles() {
+  buildMuscleGrid(document.getElementById('muscle-search').value);
+}
+
+function selectCut(name) {
+  selectedCut = name;
+  document.getElementById('selected-cut-label').textContent = name;
+  // Animate to scan panel
+  document.getElementById('muscle-panel').style.display = 'none';
+  document.getElementById('scan-panel').style.display = 'block';
+  // Update step indicators
+  setStep(2);
+  // Apply default packager
+  if (settings.defaultPackager) {
+    document.getElementById('f-packager-select').value = settings.defaultPackager;
+  }
+}
+
+function goToStep1() {
+  stopLive();
+  document.getElementById('scan-panel').style.display = 'none';
+  document.getElementById('muscle-panel').style.display = 'block';
+  buildMuscleGrid();
+  setStep(1);
+  clearScanFields();
+}
+
+function setStep(n) {
+  currentStep = n;
+  [1,2,3].forEach(i => {
+    const el = document.getElementById(`stepnum${i}`);
+    el.className = 'scan-step-num' + (i < n ? ' done' : i === n ? ' active' : '');
+    if (i < n) el.innerHTML = '✓';
+    else el.textContent = String(i);
+  });
+  [1,2].forEach(i => {
+    const el = document.getElementById(`stepline${i}`);
+    el.className = 'scan-step-line' + (i < n ? ' done' : '');
+  });
+}
+
+// ── Other cut modal ─────────────────────────────────────
+function openOtherModal() {
+  document.getElementById('other-cut-input').value = '';
+  document.getElementById('other-modal').classList.add('open');
+  setTimeout(() => document.getElementById('other-cut-input').focus(), 100);
+}
+function closeOtherModal() { document.getElementById('other-modal').classList.remove('open'); }
+function confirmOtherCut() {
+  const val = document.getElementById('other-cut-input').value.trim();
+  if (!val) { toast('Enter a cut name'); return; }
+  closeOtherModal();
+  selectCut(val);
+}
+
+// ── ZXing live scan (frame-grab loop) ───────────────────
+// ── Camera state ─────────────────────────────────────────
+let _videoStream = null;
+let _videoEl     = null;
+
+async function getBestRearCameraId() {
+  try {
+    const tmp = await navigator.mediaDevices.getUserMedia({ video: true });
+    tmp.getTracks().forEach(t => t.stop());
+  } catch(e) {}
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const cameras = devices.filter(d => d.kind === 'videoinput');
+  if (!cameras.length) return null;
+  function score(label) {
+    const l = label.toLowerCase();
+    if (/front|selfie|user|facetime/i.test(l))      return -1;
+    if (/ultra|0\.6|macro|depth|tof/i.test(l))     return 1;
+    if (/back|rear|environment|main/i.test(l))       return 10;
+    return 5;
+  }
+  const scored = cameras.map(c => ({ c, s: score(c.label) })).filter(x => x.s > 0);
+  scored.sort((a, b) => b.s - a.s);
+  return scored.length ? scored[0].c.deviceId : cameras[cameras.length - 1].deviceId;
+}
+
+// ── Live scan — preview only, user taps capture ──────────
+async function toggleLive() {
+  if (liveRunning) { stopLive(); return; }
+
+  const btn = document.getElementById('btn-live');
+  btn.innerHTML = '<div class="spinner"></div> Starting…';
+  btn.style.cssText = 'background:var(--gray6);color:white;border:none;flex:1';
+  document.getElementById('scan-ph').style.display = 'none';
+
+  try {
+    const deviceId = await getBestRearCameraId();
+    const constraints = deviceId
+      ? { video: { deviceId: { exact: deviceId }, width:{ideal:1280}, height:{ideal:720} } }
+      : { video: { facingMode: 'environment',     width:{ideal:1280}, height:{ideal:720} } };
+
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    const container = document.getElementById('scanner-container');
+    container.innerHTML = '';
+
+    const video = document.createElement('video');
+    video.setAttribute('autoplay', '');
+    video.setAttribute('playsinline', '');
+    video.setAttribute('muted', '');
+    video.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block';
+    container.appendChild(video);
+    video.srcObject = stream;
+    await video.play();
+
+    _videoStream = stream;
+    _videoEl     = video;
+    liveRunning  = true;
+
+    // Show capture button instead of stop
+    btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4" fill="currentColor"/></svg> Capture`;
+    btn.style.cssText = 'background:var(--green);color:white;border:none;flex:1';
+    btn.onclick = captureFromVideo;
+
+  } catch(e) {
+    toast('Camera error: ' + e.message);
+    document.getElementById('scan-ph').style.display = 'flex';
+    resetLiveBtn();
+  }
+}
+
+function resetLiveBtn() {
+  const btn = document.getElementById('btn-live');
+  btn.style.cssText = 'flex:1';
+  btn.onclick = toggleLive;
+  btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="4"/><path d="M2 12h2M20 12h2M12 2v2M12 20v2"/></svg> Live scan';
+}
+
+// Capture a frame from the live preview and decode it
+async function captureFromVideo() {
+  if (!_videoEl) return;
+  const canvas = document.createElement('canvas');
+  canvas.width  = _videoEl.videoWidth  || 1280;
+  canvas.height = _videoEl.videoHeight || 720;
+  canvas.getContext('2d').drawImage(_videoEl, 0, 0);
+  canvas.toBlob(async (blob) => {
+    stopLive();
+    await decodeImageBlob(blob);
+  }, 'image/jpeg', 0.92);
+}
+
+function stopLive() {
+  liveRunning = false;
+  if (_videoStream) { _videoStream.getTracks().forEach(t => t.stop()); _videoStream = null; }
+  _videoEl = null;
+  document.getElementById('scanner-container').innerHTML = '';
+  if (!document.getElementById('scan-result').classList.contains('show'))
+    document.getElementById('scan-ph').style.display = 'flex';
+  resetLiveBtn();
+}
+
+// ── Snap photo ───────────────────────────────────────────
+function triggerPhoto() { document.getElementById('photo-input').click(); }
+
+async function handlePhoto(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  event.target.value = '';
+  await decodeImageBlob(file);
+}
+
+// ── Decode via ZXing online API ──────────────────────────
+async function decodeImageBlob(blob) {
+  document.getElementById('scan-ph').style.display = 'none';
+  const wrap = document.querySelector('.scanner-wrap');
+  const ind  = document.createElement('div');
+  ind.id = 'decode-ind';
+  ind.style.cssText = 'position:absolute;inset:0;background:rgba(0,0,0,.65);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;z-index:5';
+  ind.innerHTML = '<div class="spinner" style="width:36px;height:36px;border-width:3px"></div><p style="color:white;font-size:13px;text-align:center;padding:0 20px">Reading barcode…</p>';
+  wrap.appendChild(ind);
+
+  try {
+    // Resize image to max 1200px wide before sending — keeps payload small
+    const resized = await resizeBlob(blob, 1200);
+
+    const formData = new FormData();
+    formData.append('f', resized, 'barcode.jpg');
+
+    // ZXing online decode endpoint — free, no key, handles Code128/GS1
+    const res = await fetch('https://zxing.org/w/decode', {
+      method: 'POST',
+      body: formData
+    });
+
+    const html = await res.text();
+
+    // Parse result out of the returned HTML page
+    const match = html.match(/Parsed Result[\s\S]*?<pre[^>]*>([\s\S]*?)<\/pre>/i);
+    if (match) {
+      const decoded = match[1].replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').trim();
+      wrap.removeChild(ind);
+      handleBarcode(decoded);
+    } else if (html.includes('No barcode found') || html.includes('Could not find')) {
+      wrap.removeChild(ind);
+      document.getElementById('scan-ph').style.display = 'flex';
+      toast('No barcode found — try holding steady, closer, or better lighting');
+    } else {
+      wrap.removeChild(ind);
+      document.getElementById('scan-ph').style.display = 'flex';
+      toast('Could not decode — please try again');
+    }
+  } catch(e) {
+    if (wrap.contains(ind)) wrap.removeChild(ind);
+    document.getElementById('scan-ph').style.display = 'flex';
+    toast('Decode error: ' + e.message);
+  }
+}
+
+// Resize blob to max width for faster upload
+async function resizeBlob(blob, maxW) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale  = Math.min(1, maxW / img.width);
+      const canvas = document.createElement('canvas');
+      canvas.width  = Math.round(img.width  * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(resolve, 'image/jpeg', 0.88);
+    };
+    img.src = URL.createObjectURL(blob);
+  });
+}
+
+// ── Barcode handler ──────────────────────────────────────
+function handleBarcode(raw) {
+  const p = parseGS1(raw);
+  document.getElementById('f-seq').value  = p.seq  || '';
+  document.getElementById('f-date').value = p.date || '';
+  document.getElementById('f-est').value  = p.est  || '';
+  document.getElementById('scan-result').classList.add('show');
+  document.getElementById('scan-ph').style.display = 'none';
+  document.getElementById('result-sub').innerHTML =
+    `Seq: <b>${p.seq||'—'}</b><br>Date: <b>${p.date||'—'}</b>  EST: <b>${p.est||'—'}</b>`;
+  setStep(3);
+  toast('✓ Barcode read');
+}
+
+// ── GS1-128 Parser ───────────────────────────────────────
+// Handles: parenthesis-style "(01)...(21)...", flat no-separator, and plain seq-only barcodes
+function parseGS1(raw) {
+  const out = { seq: null, date: null, est: null };
+
+  // Normalise: strip parentheses-style AIs
+  let str = raw.replace(/\((\d{2,4})\)/g, '$1').replace(/\s/g, '');
+
+  // --- Try structured GS1 parse first ---
+  let i = 0;
+  while (i < str.length) {
+    const a2 = str.slice(i, i+2);
+    const a4 = str.slice(i, i+4);
+    if (a2 === '01') { i += 16; } // skip GTIN
+    else if (a2 === '21') { const e = vEnd(str,i+2,20); out.seq  = str.slice(i+2,e); i = e; }
+    else if (a2 === '10') { const e = vEnd(str,i+2,20); if(!out.seq) out.seq = str.slice(i+2,e); i = e; }
+    else if (['11','13','15','17'].includes(a2)) {
+      const d = str.slice(i+2,i+8);
+      if (d.length===6) out.date = fmtDate(d);
+      i += 8;
+    }
+    else if (a4.startsWith('31') || a4.startsWith('32')) { i += 10; }
+    else if (a2 === '00') { i += 20; }
+    else { i++; }
+  }
+
+  // --- Positional fallback for flat GS1 strings ---
+  // Pattern: 01 + 14-digit GTIN + AI(11 or 32xx) + date/weight + 21 + seq
+  if (!out.seq && str.length > 20 && str.startsWith('01')) {
+    const gtin = str.slice(2, 16);
+    const rest = str.slice(16);
+    // Look for "21" followed by sequence
+    const seqMatch = rest.match(/21(\d{6,12})/);
+    if (seqMatch) out.seq = seqMatch[1];
+    // Look for date after "11"
+    const dateMatch = rest.match(/11(\d{6})/);
+    if (dateMatch) out.date = fmtDate(dateMatch[1]);
+    // Also try "260519" style 6-digit YYMMDD anywhere if no date yet
+    if (!out.date) {
+      const anyDate = rest.match(/(\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])/);
+      if (anyDate) out.date = `20${anyDate[1]}-${anyDate[2]}-${anyDate[3]}`;
+    }
+  }
+
+  // --- EST extraction ---
+  // EST appears as printed text; but some barcodes encode it.
+  // Look for patterns like EST.562M, EST 86M, EST:245C in the raw string
+  const estMatch = raw.match(/EST[.\s:]*([0-9]+[A-Z]*)/i);
+  if (estMatch) out.est = estMatch[1];
+
+  return out;
+}
+
+function fmtDate(d) {
+  return `20${d.slice(0,2)}-${d.slice(2,4)}-${d.slice(4,6)}`;
+}
+function vEnd(s, start, max) {
+  let i = start;
+  while (i < s.length && i < start + max) {
+    if (s[i] === '\x1d') break;
+    if (i > start+1 && ['01','10','11','13','15','17','21'].includes(s.slice(i,i+2))) break;
+    i++;
+  }
+  return i;
+}
+
+// ── Packager helpers ─────────────────────────────────────
+function handlePackagerSelect() {
+  const sel = document.getElementById('f-packager-select');
+  const inp = document.getElementById('f-packager-other');
+  inp.style.display = sel.value === '__other__' ? 'block' : 'none';
+  if (sel.value === '__other__') inp.focus();
+}
+function getPackager() {
+  const sel = document.getElementById('f-packager-select');
+  if (sel.value === '__other__') return document.getElementById('f-packager-other').value.trim();
+  return sel.value;
+}
+
+// ── Add scan ─────────────────────────────────────────────
+function addScan() {
+  if (!session) { toast('Start a cutting day first'); showSod(); return; }
+  if (!selectedCut) { toast('Select a cut first'); return; }
+
+  const seq      = document.getElementById('f-seq').value.trim();
+  const date     = document.getElementById('f-date').value.trim();
+  const est      = document.getElementById('f-est').value.trim();
+  const packager = getPackager();
+
+  if (!seq && !date) { toast('Scan the weigh ticket barcode first'); return; }
+
+  session.scans.push({
+    id: Date.now(),
+    cut: selectedCut,
+    packager, est, seq,
+    packDate: date,
+    qty: '', unit: 'Loin(s)'
+  });
+  saveSession();
+  updateBanner();
+  renderLog();
+  toast(`✓ ${selectedCut} added — ${session.scans.length} today`);
+  resetScan();
+}
+
+function resetScan() {
+  stopLive();
+  selectedCut = null;
+  clearScanFields();
+  document.getElementById('scan-result').classList.remove('show');
+  document.getElementById('scan-ph').style.display = 'flex';
+  document.getElementById('scan-panel').style.display = 'none';
+  document.getElementById('muscle-panel').style.display = 'block';
+  document.getElementById('muscle-search').value = '';
+  buildMuscleGrid();
+  setStep(1);
+}
+
+function clearScanFields() {
+  ['f-seq','f-date','f-est'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f-packager-select').value = settings.defaultPackager || '';
+  document.getElementById('f-packager-other').value = '';
+  document.getElementById('f-packager-other').style.display = 'none';
+}
+
+// ── Start of Day ─────────────────────────────────────────
+function todayStr() { return new Date().toISOString().slice(0,10); }
+function showSod()  { document.getElementById('sod-screen').classList.remove('hidden'); }
+function hideSod()  { document.getElementById('sod-screen').classList.add('hidden'); }
+
+// ── Cutter selector ──────────────────────────────────────
+const DEFAULT_CUTTERS = ['Clarence','Curtis','Justin','Nick'];
+let allCutters = [...DEFAULT_CUTTERS];
+let selectedCutters = [];
+
+function buildCutterList() {
+  const el = document.getElementById('cutter-list');
+  if (!el) return;
+  el.innerHTML = allCutters.map(name => `
+    <div class="cutter-row${selectedCutters.includes(name)?' selected':''}" onclick="toggleCutter('${name}')">
+      <div class="cutter-check">
+        ${selectedCutters.includes(name)
+          ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>'
+          : ''}
+      </div>
+      <span class="cutter-name">${name}</span>
+    </div>
+  `).join('');
+}
+
+function toggleCutter(name) {
+  if (selectedCutters.includes(name)) {
+    selectedCutters = selectedCutters.filter(c => c !== name);
+  } else {
+    selectedCutters.push(name);
+  }
+  buildCutterList();
+}
+
+function addCutter() {
+  const inp = document.getElementById('new-cutter-input');
+  const name = inp.value.trim();
+  if (!name) return;
+  if (!allCutters.includes(name)) allCutters.push(name);
+  if (!selectedCutters.includes(name)) selectedCutters.push(name);
+  inp.value = '';
+  buildCutterList();
+}
+
+// Allow Enter key to add cutter
+document.addEventListener('DOMContentLoaded', () => {
+  const inp = document.getElementById('new-cutter-input');
+  if (inp) inp.addEventListener('keydown', e => { if (e.key === 'Enter') addCutter(); });
+});
+
+function startDay() {
+  const date = document.getElementById('sod-date').value;
+  if (!date) { toast('Please select a date'); return; }
+  if (!selectedCutters.length) { toast('Select at least one cutter'); return; }
+  const cutters = selectedCutters.join(', ');
+  session = { date, cutters, scans: [], submitted: false };
+  saveSession();
+  hideSod();
+  updateBanner();
+  renderLog();
+  toast(`✓ Day started · ${cutters}`);
+}
+
+function resumeDay() {
+  hideSod();
+  updateBanner();
+  renderLog();
+}
+
+async function forcePush() {
+  if (session?.scans?.length) {
+    toast('Pushing previous day…');
+    await sendToSheets(session.scans, session.date, session.cutters, true);
+  }
+  session = null; saveSession();
+  document.getElementById('prev-banner').style.display = 'none';
+  document.getElementById('sod-form').style.display = 'block';
+  document.getElementById('sod-date').value = todayStr();
+  selectedCutters = []; buildCutterList();
+}
+
+function saveSession() { localStorage.setItem(SESSION_KEY, JSON.stringify(session)); }
+
+function updateBanner() {
+  if (!session) return;
+  const d = new Date(session.date + 'T12:00:00');
+  const label = d.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'});
+  document.getElementById('session-text').textContent =
+    `${label} · ${session.cutters} · ${session.scans.length} scan${session.scans.length!==1?'s':''}`;
+}
+
+// ── Render review list ───────────────────────────────────
+function renderLog() {
+  const scans = session?.scans || [];
+  const n = scans.length;
+  document.getElementById('log-count-nav').textContent   = n;
+  document.getElementById('log-count-badge').textContent = n;
+  const complete = scans.filter(s => s.qty).length;
+  document.getElementById('eod-progress').textContent = n ? `${complete} of ${n} quantities filled in` : '';
+
+  const list = document.getElementById('log-list');
+  if (!n) {
+    list.innerHTML = '<div class="log-empty">No scans yet today.<br>Select a cut and scan a barcode to begin.</div>';
+    return;
+  }
+  list.innerHTML = scans.map(s => `
+    <div class="review-item">
+      <div class="review-item-top">
+        <div class="ri-dot ${s.qty ? 'complete' : 'pending'}"></div>
+        <div style="flex:1;min-width:0">
+          <div class="ri-name">${s.cut}</div>
+          <div class="ri-meta">
+            Seq: ${s.seq||'—'} &nbsp;·&nbsp; EST: ${s.est||'—'}<br>
+            Pack date: ${s.packDate||'—'} &nbsp;·&nbsp; ${s.packager||'—'}
+          </div>
+        </div>
+        <button onclick="removeScan(${s.id})" style="background:none;border:none;color:var(--gray4);font-size:20px;cursor:pointer;padding:0 2px;flex-shrink:0;line-height:1">×</button>
+      </div>
+      <div class="ri-qty-row">
+        <input type="number" min="0" placeholder="Qty" value="${s.qty||''}"
+          onchange="saveScanQty(${s.id}, this.value, null)" id="qty-${s.id}"/>
+        <select onchange="saveScanQty(${s.id}, null, this.value)" id="unit-${s.id}">
+          <option ${s.unit==='Loin(s)'?'selected':''}>Loin(s)</option>
+          <option ${s.unit==='Pack(s)'?'selected':''}>Pack(s)</option>
+          <option ${s.unit==='Case(s)'?'selected':''}>Case(s)</option>
+        </select>
+      </div>
+    </div>
+  `).join('');
+}
+
+function saveScanQty(id, qty, unit) {
+  const s = session.scans.find(s => s.id === id);
+  if (!s) return;
+  if (qty  !== null) s.qty  = qty;
+  if (unit !== null) s.unit = unit;
+  saveSession();
+  const dot = document.querySelector(`#qty-${id}`)?.closest('.review-item')?.querySelector('.ri-dot');
+  if (dot) dot.className = 'ri-dot ' + (s.qty ? 'complete' : 'pending');
+  const complete = session.scans.filter(s=>s.qty).length;
+  document.getElementById('eod-progress').textContent =
+    `${complete} of ${session.scans.length} quantities filled in`;
+}
+
+function removeScan(id) {
+  if (!confirm('Remove this scan?')) return;
+  session.scans = session.scans.filter(s => s.id !== id);
+  saveSession(); updateBanner(); renderLog();
+}
+
+// ── Submit day ───────────────────────────────────────────
+async function submitDay() {
+  if (!session?.scans?.length) { toast('No scans to submit'); return; }
+
+  // Collect latest qty/unit values from DOM
+  session.scans.forEach(s => {
+    const q = document.getElementById(`qty-${s.id}`);
+    const u = document.getElementById(`unit-${s.id}`);
+    if (q) s.qty  = q.value;
+    if (u) s.unit = u.value;
+  });
+  saveSession();
+
+  const missing = session.scans.filter(s => !s.qty).length;
+  if (missing > 0) {
+    if (!confirm(`${missing} scan${missing>1?'s are':' is'} missing a quantity. Submit anyway?\n(You can fill them in on the sheet later.)`)) return;
+  }
+
+  const btn = document.getElementById('btn-submit');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> Submitting…';
+
+  const ok = await sendToSheets(session.scans, session.date, session.cutters, false);
+
+  btn.disabled = false;
+  btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="22 2 15 22 11 13 2 9 22 2"/></svg> Finalize &amp; Submit';
+
+  if (ok) {
+    toast(`✓ ${session.scans.length} rows submitted to Google Sheets`);
+    session.submitted = true; saveSession();
+    setTimeout(() => { session = null; saveSession(); showSod(); document.getElementById('sod-form').style.display='block'; document.getElementById('sod-date').value=todayStr(); selectedCutters=[]; buildCutterList(); }, 1800);
+  } else {
+    toast('Submission failed — data saved locally. Try again.');
+  }
+}
+
+async function sendToSheets(scans, date, cutters, partial) {
+  try {
+    const rows = scans.map(s => ({
+      date, cutters,
+      cut:      s.cut,
+      packager: s.packager,
+      est:      s.est,
+      seq:      s.seq,
+      packDate: s.packDate,
+      qty:      s.qty  || '',
+      unit:     s.unit || '',
+      partial:  partial ? 'Yes' : 'No'
+    }));
+    const res = await fetch(PROXY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ rows })
+    });
+    const data = await res.json();
+    return data.status === 'ok';
+  } catch(e) { return false; }
+}
+
+// ── Settings ─────────────────────────────────────────────
+function loadSettingsUI() {
+  if (settings.defaultPackager)
+    document.getElementById('set-default-packager').value = settings.defaultPackager;
+}
+function saveSettings() {
+  settings.defaultPackager = document.getElementById('set-default-packager').value;
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+}
+
+// ── Tab switching ────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(el => el.classList.remove('active'));
+  document.getElementById(tab+'-tab').classList.add('active');
+  document.getElementById('tab-'+tab).classList.add('active');
+  document.getElementById('save-bar').style.display = tab === 'scan' ? 'flex' : 'none';
+  if (tab !== 'scan') stopLive();
+}
+
+// Close modal on bg tap
+document.getElementById('other-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('other-modal')) closeOtherModal();
+});
+
+// ── Toast ────────────────────────────────────────────────
+let _tt = null;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  if (_tt) clearTimeout(_tt);
+  _tt = setTimeout(() => el.classList.remove('show'), 2800);
+}
+</script>
+</body>
+</html>
