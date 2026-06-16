@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Barcode Test</title>
+<style>
+  body{font-family:sans-serif;padding:20px;background:#111;color:white}
+  pre{background:#222;padding:14px;border-radius:8px;font-size:14px;margin-top:12px;white-space:pre-wrap}
+  button{background:#2e7d32;color:white;border:none;padding:14px 20px;border-radius:8px;font-size:16px;margin-top:12px;width:100%}
+  video{width:100%;border-radius:8px;margin-top:12px;display:none}
+</style>
+</head>
+<body>
+<h2>Barcode Detector Test</h2>
+<pre id="out">Tap the button to run the test…</pre>
+<button onclick="runTest()">Run Test</button>
+<button onclick="startCamera()" style="background:#1565c0;margin-top:8px">Test Camera + Scan</button>
+<video id="vid" autoplay playsinline muted></video>
+<pre id="scan-out"></pre>
+
+<script>
+async function runTest() {
+  const out = document.getElementById('out');
+  try {
+    if (!('BarcodeDetector' in window)) {
+      out.textContent = '❌ BarcodeDetector NOT available in this browser';
+      return;
+    }
+    const formats = await BarcodeDetector.getSupportedFormats();
+    out.textContent = '✓ BarcodeDetector available!\n\nSupported formats:\n' + formats.join('\n');
+  } catch(e) {
+    out.textContent = 'Error: ' + e.message;
+  }
+}
+
+async function startCamera() {
+  const vid = document.getElementById('vid');
+  const out = document.getElementById('scan-out');
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width:{ideal:1280}, height:{ideal:720} }
+    });
+    vid.srcObject = stream;
+    vid.style.display = 'block';
+    out.textContent = 'Camera running — scanning every second…';
+
+    const formats = await BarcodeDetector.getSupportedFormats();
+    const detector = new BarcodeDetector({ formats });
+    let attempts = 0;
+
+    const interval = setInterval(async () => {
+      attempts++;
+      const canvas = document.createElement('canvas');
+      canvas.width = vid.videoWidth;
+      canvas.height = vid.videoHeight;
+      canvas.getContext('2d').drawImage(vid, 0, 0);
+      try {
+        const results = await detector.detect(canvas);
+        if (results.length > 0) {
+          clearInterval(interval);
+          stream.getTracks().forEach(t => t.stop());
+          vid.style.display = 'none';
+          out.textContent = '✓ Barcode found after ' + attempts + ' attempts!\n\nFormat: ' + results[0].format + '\nValue: ' + results[0].rawValue;
+        } else {
+          out.textContent = 'Scanning… attempt ' + attempts + ' (no barcode found yet)';
+        }
+      } catch(e) {
+        out.textContent = 'Scan error: ' + e.message;
+      }
+    }, 1000);
+
+  } catch(e) {
+    out.textContent = 'Camera error: ' + e.message;
+  }
+}
+
+// Run format check on load
+runTest();
+</script>
+</body>
+</html>
