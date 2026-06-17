@@ -699,6 +699,7 @@ async function handlePhoto(event) {
   const ind  = showSpinner(wrap, 'Reading barcode…');
 
   try {
+    // createImageBitmap on File directly — confirmed working on Android Chrome
     const bitmap = await createImageBitmap(file);
     const canvas = document.createElement('canvas');
     canvas.width  = bitmap.width;
@@ -739,15 +740,18 @@ async function getDetector() {
 
 async function tryDecode(canvas) {
   const detector = await getDetector();
-  // Try all 4 rotations — fixes portrait capture of landscape barcodes
-  let c = canvas;
+  // createImageBitmap first — confirmed working on Galaxy Z Fold 3
+  // Try original orientation first, then rotations
+  let src = canvas;
   for (let i = 0; i < 4; i++) {
-    const results = await detector.detect(c);
-    if (results && results.length > 0) {
-      // Return longest rawValue first — most likely the GS1-128
-      return results.sort((a, b) => b.rawValue.length - a.rawValue.length);
-    }
-    c = rotateCanvas90(c);
+    try {
+      const bitmap  = await createImageBitmap(src);
+      const results = await detector.detect(bitmap);
+      if (results && results.length > 0) {
+        return results.sort((a, b) => b.rawValue.length - a.rawValue.length);
+      }
+    } catch(e) { /* try next rotation */ }
+    src = rotateCanvas90(src);
   }
   return null;
 }
@@ -787,7 +791,9 @@ function removeSpinner(wrap, ind) {
 
 // ── Barcode handler ──────────────────────────────────────
 function handleBarcode(raw) {
-  const p = parseGS1(raw);
+  // Strip GS1 symbology identifier prefix e.g. ]C1, ]e0, ]I1
+  const clean = raw.replace(/^\][A-Za-z][0-9]/, '').trim();
+  const p = parseGS1(clean);
   document.getElementById('f-seq').value  = p.seq  || '';
   document.getElementById('f-date').value = p.date || '';
   document.getElementById('f-est').value  = p.est  || '';
