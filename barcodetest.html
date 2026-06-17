@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Barcode Test</title>
+<style>
+  body{font-family:sans-serif;padding:16px;background:#111;color:white}
+  pre{background:#222;padding:12px;border-radius:8px;font-size:13px;margin-top:10px;white-space:pre-wrap;word-break:break-all}
+  button{background:#2e7d32;color:white;border:none;padding:14px 20px;border-radius:8px;font-size:16px;margin-top:10px;width:100%;display:block}
+  video,img{width:100%;border-radius:8px;margin-top:10px}
+  h3{margin-top:16px;font-size:14px;color:#aaa}
+</style>
+</head>
+<body>
+<h2>Barcode Test v2</h2>
+<pre id="out">Loading…</pre>
+<button onclick="startScan()">Start Camera</button>
+<button onclick="snapAndDecode()" id="snap-btn" style="background:#1565c0;display:none">Snap &amp; Decode</button>
+<button onclick="stopAll()" id="stop-btn" style="background:#c62828;display:none">Stop</button>
+<video id="vid" autoplay playsinline muted style="display:none"></video>
+<h3 id="frame-label" style="display:none">Rotated frame sent to detector:</h3>
+<img id="frame-preview" style="display:none"/>
+<pre id="result-out" style="display:none"></pre>
+
+<script>
+let stream = null;
+let detector = null;
+
+async function init() {
+  const out = document.getElementById('out');
+  if (!('BarcodeDetector' in window)) {
+    out.textContent = '❌ BarcodeDetector not available';
+    return;
+  }
+  const formats = await BarcodeDetector.getSupportedFormats();
+  out.textContent = '✓ BarcodeDetector ready\nFormats: ' + formats.join(', ');
+  detector = new BarcodeDetector({ formats });
+}
+
+async function startScan() {
+  const vid = document.getElementById('vid');
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width:{ideal:1920}, height:{ideal:1080} }
+    });
+    vid.srcObject = stream;
+    vid.style.display = 'block';
+    document.getElementById('snap-btn').style.display = 'block';
+    document.getElementById('stop-btn').style.display = 'block';
+    document.getElementById('out').textContent = 'Camera running — point at barcode, wait for focus, tap Snap & Decode.';
+  } catch(e) {
+    document.getElementById('out').textContent = 'Camera error: ' + e.message;
+  }
+}
+
+// Rotate canvas 90 degrees clockwise — fixes portrait capture of landscape barcodes
+function rotateCanvas90(src) {
+  const dst = document.createElement('canvas');
+  dst.width  = src.height;
+  dst.height = src.width;
+  const ctx = dst.getContext('2d');
+  ctx.translate(dst.width, 0);
+  ctx.rotate(Math.PI / 2);
+  ctx.drawImage(src, 0, 0);
+  return dst;
+}
+
+async function snapAndDecode() {
+  const vid = document.getElementById('vid');
+  if (!vid.videoWidth) { alert('Camera not ready'); return; }
+
+  // Capture raw frame
+  const raw = document.createElement('canvas');
+  raw.width  = vid.videoWidth;
+  raw.height = vid.videoHeight;
+  raw.getContext('2d').drawImage(vid, 0, 0);
+
+  const resultOut = document.getElementById('result-out');
+  resultOut.style.display = 'block';
+  resultOut.textContent = `Raw frame: ${raw.width}x${raw.height}\nTrying all rotations…`;
+
+  // Try 4 rotations
+  const canvases = [raw];
+  let c = raw;
+  for (let i = 0; i < 3; i++) { c = rotateCanvas90(c); canvases.push(c); }
+
+  let found = false;
+  for (let i = 0; i < canvases.length; i++) {
+    const canvas = canvases[i];
+    const results = await detector.detect(canvas);
+    if (results && results.length > 0) {
+      // Show the winning rotated frame
+      document.getElementById('frame-preview').src = canvas.toDataURL('image/jpeg', 0.85);
+      document.getElementById('frame-preview').style.display = 'block';
+      document.getElementById('frame-label').style.display = 'block';
+      document.getElementById('frame-label').textContent = `Found at rotation ${i * 90}°:`;
+      resultOut.textContent = `✓ Barcode found! (rotation: ${i * 90}°)\n\n` +
+        results.map((r,j) => `Result ${j+1}:\n  Format: ${r.format}\n  Length: ${r.rawValue.length}\n  Value: ${r.rawValue}`).join('\n\n');
+      found = true;
+      break;
+    }
+  }
+
+  if (!found) {
+    document.getElementById('frame-preview').src = raw.toDataURL('image/jpeg', 0.85);
+    document.getElementById('frame-preview').style.display = 'block';
+    document.getElementById('frame-label').style.display = 'block';
+    document.getElementById('frame-label').textContent = 'Raw frame (no barcode found in any rotation):';
+    resultOut.textContent = `❌ No barcode found in any rotation.\nRaw frame: ${raw.width}x${raw.height}`;
+  }
+}
+
+function stopAll() {
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  document.getElementById('vid').style.display = 'none';
+  document.getElementById('snap-btn').style.display = 'none';
+  document.getElementById('stop-btn').style.display = 'none';
+}
+
+init();
+</script>
+</body>
+</html>
