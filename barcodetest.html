@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Barcode Test</title>
+<style>
+  body{font-family:sans-serif;padding:16px;background:#111;color:white}
+  pre{background:#222;padding:12px;border-radius:8px;font-size:13px;margin-top:10px;white-space:pre-wrap;word-break:break-all}
+  button{background:#2e7d32;color:white;border:none;padding:14px 20px;border-radius:8px;font-size:16px;margin-top:10px;width:100%;display:block}
+  video,img{width:100%;border-radius:8px;margin-top:10px}
+  h3{margin-top:16px;font-size:14px;color:#aaa}
+</style>
+</head>
+<body>
+<h2>Barcode Detector Test</h2>
+<pre id="out">Loading…</pre>
+<button onclick="startScan()">Start Camera &amp; Scan</button>
+<button onclick="snapAndDecode()" id="snap-btn" style="background:#1565c0;display:none">Snap &amp; Decode</button>
+<button onclick="stopAll()" id="stop-btn" style="background:#c62828;display:none">Stop Camera</button>
+<video id="vid" autoplay playsinline muted style="display:none"></video>
+<h3 id="frame-label" style="display:none">Last frame sent to BarcodeDetector:</h3>
+<img id="frame-preview" style="display:none"/>
+<pre id="result-out" style="display:none"></pre>
+
+<script>
+let stream = null;
+let detector = null;
+
+async function init() {
+  const out = document.getElementById('out');
+  if (!('BarcodeDetector' in window)) {
+    out.textContent = '❌ BarcodeDetector not available';
+    return;
+  }
+  const formats = await BarcodeDetector.getSupportedFormats();
+  out.textContent = '✓ BarcodeDetector ready\nFormats: ' + formats.join(', ');
+  detector = new BarcodeDetector({ formats });
+}
+
+async function startScan() {
+  const vid = document.getElementById('vid');
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width:{ideal:1920}, height:{ideal:1080} }
+    });
+    vid.srcObject = stream;
+    vid.style.display = 'block';
+    document.getElementById('snap-btn').style.display = 'block';
+    document.getElementById('stop-btn').style.display = 'block';
+    document.getElementById('out').textContent = 'Camera running.\nPoint at barcode, wait for focus, then tap Snap & Decode.';
+  } catch(e) {
+    document.getElementById('out').textContent = 'Camera error: ' + e.message;
+  }
+}
+
+async function snapAndDecode() {
+  const vid = document.getElementById('vid');
+  if (!vid.videoWidth) { alert('Camera not ready yet'); return; }
+
+  // Capture frame
+  const canvas = document.createElement('canvas');
+  canvas.width  = vid.videoWidth;
+  canvas.height = vid.videoHeight;
+  canvas.getContext('2d').drawImage(vid, 0, 0);
+
+  // Show the frame we captured
+  const preview = document.getElementById('frame-preview');
+  preview.src = canvas.toDataURL('image/jpeg', 0.9);
+  preview.style.display = 'block';
+  document.getElementById('frame-label').style.display = 'block';
+
+  const resultOut = document.getElementById('result-out');
+  resultOut.style.display = 'block';
+  resultOut.textContent = `Frame size: ${canvas.width} x ${canvas.height}\nDecoding…`;
+
+  try {
+    const results = await detector.detect(canvas);
+    if (results && results.length > 0) {
+      resultOut.textContent = `Frame: ${canvas.width}x${canvas.height}\n\n` +
+        results.map((r,i) => `Result ${i+1}:\n  Format: ${r.format}\n  Length: ${r.rawValue.length} chars\n  Value: ${r.rawValue}`).join('\n\n');
+    } else {
+      resultOut.textContent = `Frame: ${canvas.width}x${canvas.height}\n\n❌ No barcode detected in this frame.\nCheck the preview image above — is the barcode clear and in focus?`;
+    }
+  } catch(e) {
+    resultOut.textContent = 'Decode error: ' + e.message;
+  }
+}
+
+function stopAll() {
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  document.getElementById('vid').style.display = 'none';
+  document.getElementById('snap-btn').style.display = 'none';
+  document.getElementById('stop-btn').style.display = 'none';
+}
+
+init();
+</script>
+</body>
+</html>
