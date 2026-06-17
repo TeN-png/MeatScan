@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Barcode Test v3</title>
+<style>
+  body{font-family:sans-serif;padding:16px;background:#111;color:white}
+  pre{background:#222;padding:12px;border-radius:8px;font-size:12px;margin-top:10px;white-space:pre-wrap;word-break:break-all}
+  button{background:#2e7d32;color:white;border:none;padding:14px 20px;border-radius:8px;font-size:15px;margin-top:8px;width:100%;display:block}
+  video,img{width:100%;border-radius:8px;margin-top:10px}
+</style>
+</head>
+<body>
+<h2>Barcode Test v3</h2>
+<pre id="out">Loading…</pre>
+
+<!-- Test 1: snap photo from native camera -->
+<button onclick="document.getElementById('fi').click()">Test 1: Take photo with native camera</button>
+<input type="file" id="fi" accept="image/*" capture="environment" style="display:none" onchange="testPhoto(event)"/>
+
+<!-- Test 2: live camera snap -->
+<button onclick="startLive()" id="live-btn">Test 2: Start live camera</button>
+<button onclick="snapLive()" id="snap-btn" style="display:none;background:#1565c0">Snap from live camera</button>
+<button onclick="stopLive()" id="stop-btn" style="display:none;background:#c62828">Stop camera</button>
+<video id="vid" autoplay playsinline muted style="display:none"></video>
+
+<pre id="result"></pre>
+<img id="preview" style="display:none"/>
+
+<script>
+let detector128, detectorAll, stream;
+
+async function init() {
+  const out = document.getElementById('out');
+  try {
+    const allFmts = await BarcodeDetector.getSupportedFormats();
+    // Two detectors: one code_128 only, one all formats
+    detector128 = new BarcodeDetector({ formats: ['code_128'] });
+    detectorAll = new BarcodeDetector({ formats: allFmts });
+    out.textContent = '✓ Ready\nAll formats: ' + allFmts.join(', ');
+  } catch(e) {
+    out.textContent = 'Init error: ' + e;
+  }
+}
+
+async function runAllTests(imageSource) {
+  const result = document.getElementById('result');
+  result.textContent = 'Running tests…\n';
+
+  // Test A: code_128 detector on ImageBitmap
+  try {
+    const bitmap = await createImageBitmap(imageSource);
+    const r = await detector128.detect(bitmap);
+    result.textContent += `A) code_128 on ImageBitmap: ${r.length} result(s)\n`;
+    if (r.length) result.textContent += `   → ${r[0].format}: ${r[0].rawValue}\n`;
+  } catch(e) { result.textContent += `A) Error: ${e.message}\n`; }
+
+  // Test B: all-formats detector on ImageBitmap
+  try {
+    const bitmap = await createImageBitmap(imageSource);
+    const r = await detectorAll.detect(bitmap);
+    result.textContent += `B) all formats on ImageBitmap: ${r.length} result(s)\n`;
+    if (r.length) r.forEach(x => result.textContent += `   → ${x.format}: ${x.rawValue}\n`);
+  } catch(e) { result.textContent += `B) Error: ${e.message}\n`; }
+
+  // Test C: canvas element
+  try {
+    const bitmap = await createImageBitmap(imageSource);
+    const c = document.createElement('canvas');
+    c.width = bitmap.width; c.height = bitmap.height;
+    c.getContext('2d').drawImage(bitmap, 0, 0);
+    const r = await detector128.detect(c);
+    result.textContent += `C) code_128 on canvas (${c.width}x${c.height}): ${r.length} result(s)\n`;
+    if (r.length) result.textContent += `   → ${r[0].rawValue}\n`;
+  } catch(e) { result.textContent += `C) Error: ${e.message}\n`; }
+
+  // Test D: rotated canvas (90°)
+  try {
+    const bitmap = await createImageBitmap(imageSource);
+    const src = document.createElement('canvas');
+    src.width = bitmap.width; src.height = bitmap.height;
+    src.getContext('2d').drawImage(bitmap, 0, 0);
+    const dst = document.createElement('canvas');
+    dst.width = src.height; dst.height = src.width;
+    const ctx = dst.getContext('2d');
+    ctx.translate(dst.width, 0); ctx.rotate(Math.PI/2);
+    ctx.drawImage(src, 0, 0);
+    const r = await detector128.detect(dst);
+    result.textContent += `D) code_128 rotated 90°: ${r.length} result(s)\n`;
+    if (r.length) result.textContent += `   → ${r[0].rawValue}\n`;
+  } catch(e) { result.textContent += `D) Error: ${e.message}\n`; }
+
+  // Test E: Blob directly (if imageSource is a File/Blob)
+  if (imageSource instanceof Blob) {
+    try {
+      const r = await detector128.detect(imageSource);
+      result.textContent += `E) code_128 on raw Blob: ${r.length} result(s)\n`;
+      if (r.length) result.textContent += `   → ${r[0].rawValue}\n`;
+    } catch(e) { result.textContent += `E) Blob direct: ${e.message}\n`; }
+  }
+
+  // Show preview
+  const preview = document.getElementById('preview');
+  const bitmap2 = await createImageBitmap(imageSource);
+  const pc = document.createElement('canvas');
+  pc.width = bitmap2.width; pc.height = bitmap2.height;
+  pc.getContext('2d').drawImage(bitmap2, 0, 0);
+  preview.src = pc.toDataURL('image/jpeg', 0.7);
+  preview.style.display = 'block';
+
+  result.textContent += `\nImage size: ${bitmap2.width}x${bitmap2.height}`;
+}
+
+async function testPhoto(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  document.getElementById('result').textContent = 'Processing photo…';
+  await runAllTests(file);
+  e.target.value = '';
+}
+
+async function startLive() {
+  const vid = document.getElementById('vid');
+  stream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode:'environment', width:{ideal:1920}, height:{ideal:1080} }
+  });
+  vid.srcObject = stream; vid.style.display = 'block';
+  document.getElementById('live-btn').style.display = 'none';
+  document.getElementById('snap-btn').style.display = 'block';
+  document.getElementById('stop-btn').style.display = 'block';
+}
+
+async function snapLive() {
+  const vid = document.getElementById('vid');
+  const c = document.createElement('canvas');
+  c.width = vid.videoWidth; c.height = vid.videoHeight;
+  c.getContext('2d').drawImage(vid, 0, 0);
+  c.toBlob(async blob => { await runAllTests(blob); }, 'image/jpeg', 0.95);
+}
+
+function stopLive() {
+  if (stream) stream.getTracks().forEach(t=>t.stop());
+  document.getElementById('vid').style.display = 'none';
+  document.getElementById('live-btn').style.display = 'block';
+  document.getElementById('snap-btn').style.display = 'none';
+  document.getElementById('stop-btn').style.display = 'none';
+}
+
+init();
+</script>
+</body>
+</html>
